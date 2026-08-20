@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Meus Vídeos · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Meus Vídeos{% endblock %}
+{% block content %}
+<div class="section-head"><div><span class="create-kicker">RENDERS</span><h1>Meus Vídeos</h1><p class="muted">Escolha um projeto para ver seus cortes.</p></div><div class="row"><form method="get"><select name="project_id" aria-label="Selecionar projeto" onchange="this.form.submit()"><option value="">Todos os projetos</option>{% for project in projects %}<option value="{{project.id}}" {% if project.id==selected_project_id %}selected{% endif %}>{{project.title}}</option>{% endfor %}</select></form><a class="btn primary" href="/projects/new">＋ Novo projeto</a></div></div>
+{% if clips %}<div class="studio-video-list">{% for clip in clips %}<article class="studio-video-row">
+  <a class="studio-video-thumb" href="/clips/{{clip.id}}/preview-video" target="_blank">{% if clip.thumbnail_path %}<img src="/clips/{{clip.id}}/thumb" alt="Preview de {{clip.title}}">{% else %}<span>▶</span>{% endif %}<div class="video-duration">{{ '%.0f'|format(clip.end_time-clip.start_time) }}s</div></a>
+  <div class="studio-video-copy"><small>{{clip.project_title}}</small><h3>{{clip.title}}</h3><div class="video-meta"><span class="status-row workflow-{{clip.workflow_status}}"><i class="status-dot"></i>{{clip.workflow_status}}</span><span>ViralScore {{ clip.analysis.score }}/100</span></div></div>
+  <div class="studio-video-actions"><a class="btn" href="/clips/{{clip.id}}/preview-video" target="_blank">▶ Assistir</a><a class="btn" href="/clips/{{clip.id}}/edit">✎ Editar</a><a class="btn primary" href="/clips/{{clip.id}}/download">⇩ Baixar</a></div>
+</article>{% endfor %}</div>{% else %}<div class="empty card"><h3>Nenhum vídeo neste projeto</h3><p>Escolha outro projeto ou crie novos cortes.</p><a class="btn primary" href="/projects/new">Criar projeto</a></div>{% endif %}
+{% endblock %}

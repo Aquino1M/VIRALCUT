@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="editor-topline">
+  <div class="row"><a class="icon-btn" id="editorBackLink" href="/projects/{{clip.project_id}}" title="Salvar e voltar">←</a><div><div class="eyebrow">EDITOR</div><h1>{{ clip.title }}</h1></div></div>
+  <div class="editor-actions"><span id="autosaveState" class="autosave">✓ Salvo</span><button id="saveEditorBtn" class="btn small">💾 Salvar</button><button id="undoBtn" class="icon-btn" title="Desfazer">↶</button><button id="redoBtn" class="icon-btn" title="Refazer">↷</button><button id="downloadFinal" class="btn primary" type="button">⇩ Baixar MP4</button></div>
+</div>
+
+<div class="editor-v2">
+  <aside class="editor-left card">
+    <div class="style-picker-tabs" id="stylePickerTabs" role="tablist" aria-label="Escolher legenda ou layout">
+      <button class="active" type="button" role="tab" aria-selected="true" data-picker-tab="captions">T Legendas</button>
+      <button type="button" role="tab" aria-selected="false" data-picker-tab="layouts">▦ Layouts</button>
+    </div>
+
+    <div class="style-picker-panel active" role="tabpanel" data-picker-panel="captions">
+      <div class="editor-side-head"><h3>Estilos de legenda</h3><span class="muted">Preview instantâneo</span></div>
+      <div class="preset-gallery" id="captionPresetGallery">
+        {% for p in caption_presets %}
+        <button class="caption-preset-card {% if p.id==state.caption_preset_id %}active{% endif %}" data-preset="{{p.id}}" type="button">
+          <div class="preset-preview" style="font-family:'{{p.config.fontFamily}}';font-size:{{ [p.config.fontSize/3,28]|min }}px;text-transform:{{ 'uppercase' if p.config.textCase=='upper' else 'none' }};color:{{p.config.primaryColor}};text-shadow:0 2px 0 {{p.config.strokeColor}}">SEU <b style="color:{{p.config.secondaryColor}}">VÍDEO</b> VIRAL</div>
+          <div><b>{{p.name}}</b><small>{{p.description}}</small></div>
+        </button>
+        {% endfor %}
+      </div>
+      {% if user_presets %}<div class="editor-side-head layout-title"><h3>Meus presets</h3><span class="muted">★ favoritos primeiro</span></div><div class="saved-presets" id="savedPresets">{% for p in user_presets %}<div class="saved-preset" data-user-preset="{{p.id}}"><button type="button" class="saved-preset-apply" title="Aplicar {{p.name}}"><span>{{'★' if p.favorite else '☆'}}</span><b>{{p.name}}</b><small>{{p.preset_type}}</small></button><button type="button" class="saved-preset-more" data-action="duplicate" title="Duplicar">⧉</button><button type="button" class="saved-preset-more" data-action="favorite" data-favorite="{{1 if p.favorite else 0}}" title="Favoritar">♥</button></div>{% endfor %}</div>{% endif %}
+      {% if studio_templates %}<div class="editor-side-head layout-title"><h3>Studio Templates</h3><span class="muted">layout + legenda + automação</span></div><div class="saved-presets studio-template-list">{% for p in studio_templates %}<div class="saved-preset"><button type="button" class="studio-template-apply" data-template-id="{{p.id}}" title="Aplicar {{p.name}}"><span>✦</span><b>{{p.name}}</b><small>Smart Studio</small></button></div>{% endfor %}</div>{% endif %}
+    </div>
+
+    <div class="style-picker-panel" role="tabpanel" data-picker-panel="layouts">
+      <div class="editor-side-head"><h3>Layouts de vídeo</h3><span class="muted">{{layout_presets|length}} opções</span></div>
+      <div class="layout-grid layout-grid-picker" id="layoutGallery">
+        {% for p in layout_presets %}
+        <button class="layout-card {% if p.id==state.layout_preset_id %}active{% endif %}" type="button" data-layout="{{p.id}}"><div class="layout-icon">{{p.icon}}</div><span>{{p.name}}</span></button>
+        {% endfor %}
+      </div>
+    </div>
+  </aside>
+
+  <section class="editor-center">
+    <div class="canvas-stage card">
+      <div class="phone-canvas" id="phoneCanvas" style="aspect-ratio:{{ aspect_css }}">
+        <video id="editorVideo" playsinline preload="auto" src="/clips/{{clip.id}}/editor-proxy?v=42-robust"></video><canvas id="layoutCanvas" class="layout-canvas" style="display:none"></canvas><div id="editorMediaLoading" class="editor-media-loading active"><span class="media-loading-spinner"></span><b>Carregando preview…</b><small>Preparando proxy de vídeo</small></div><div class="proxy-quality-badge">{{ performance.proxy_height }}p PROXY</div>
+        <div id="layoutGhost" class="layout-ghost"></div>
+        <div id="safeZones" class="safe-zones"><span class="safe-top">SAFE</span><span class="safe-bottom">TikTok / Reels UI</span></div>
+        <div id="captionOverlay" class="caption-overlay"><span>SEU <b>VÍDEO</b> VIRAL</span></div>
+        <div id="overlayLayer" class="overlay-layer"></div>
+      </div>
+    </div>
+    <div class="transport card">
+      <button data-seek="-10">−10s</button><button data-seek="-5">−5s</button><button id="playToggle" class="play-main">▶</button><button data-seek="5">+5s</button><button data-seek="10">+10s</button>
+      <span id="timeDisplay">00:00 / {{'%02d:%02d'|format(((clip.end_time-clip.start_time)//60)|int, ((clip.end_time-clip.start_time)%60)|int)}}</span>
+      <input id="scrubber" type="range" min="0" max="1000" value="0"><button id="loopBtn" class="toggle-btn">↻ Loop</button><button id="safeBtn" class="toggle-btn active">▣ Safe zones</button>
+    </div>
+  </section>
+
+  <aside class="editor-right card">
+    <nav class="editor-tabs" id="editorTabs"><button class="active" data-tab="captions">T Legenda</button><button data-tab="layout">▦ Layout</button><button data-tab="auto-edit">✦ Auto Edit</button>{% if user.is_admin %}<button data-tab="library">▣ Biblioteca</button>{% endif %}<button data-tab="text">T CTA</button><button data-tab="brand">◇ Brand Kit</button><button data-tab="export">⇩ Export</button></nav>
+
+    <div class="tab-panel active" data-panel="captions">
+      <label>Fonte<select id="fontFamily">{% for f in fonts %}<option value="{{f.family}}" {% if f.family==(state.caption_config.fontFamily or 'Bangers') %}selected{% endif %}>{{f.family}}{% if not f.available %} · opcional{% endif %}</option>{% endfor %}</select></label>
+      <div class="control-row"><label>Estilo<select id="fontWeight"><option value="400">Regular</option><option value="700">Bold</option><option value="900" selected>Black</option></select></label><label>Alinhamento<select id="align"><option value="left">◀ Esquerda</option><option value="center" selected>● Centro</option><option value="right">Direita ▶</option></select></label></div>
+      <div class="segmented" id="textCase"><button data-value="lower">minúsculas</button><button data-value="upper" class="active">MAIÚSCULAS</button><button data-value="original">Original</button></div>
+      <label>Tamanho <output id="fontSizeOut">75px</output><input id="fontSize" type="range" min="18" max="180" value="75"></label>
+      <label>Posição vertical <output id="positionYOut">1200px</output><input id="positionY" type="range" min="80" max="1820" value="1200"></label>
+      <label>Posição horizontal <output id="positionXOut">540px</output><input id="positionX" type="range" min="0" max="1080" value="540"></label>
+      <div class="control-row"><label>Altura <output id="lineHeightOut">1.2</output><input id="lineHeight" type="range" min="0.7" max="2" step="0.05" value="1.2"></label><label>Espaçamento <output id="letterSpacingOut">0</output><input id="letterSpacing" type="range" min="-5" max="20" step="1" value="0"></label></div>
+      <label>Máximo de linhas <output id="maxLinesOut">1 linha</output><input id="maxLines" type="range" min="1" max="6" value="1"></label>
+      <label>Palavras por página <output id="wordsPerPageOut">3</output><input id="wordsPerPage" type="range" min="1" max="12" value="3"></label>
+      <label>Duração das palavras <output id="pageDurationOut">900ms</output><input id="pageDurationMs" type="range" min="100" max="2000" step="50" value="900"></label>
+      <div class="color-grid"><label>Texto<input id="primaryColor" type="color" value="#ffffff"></label><label>Destaque<input id="secondaryColor" type="color" value="#76ff03"></label><label>Contorno<input id="strokeColor" type="color" value="#000000"></label><label>Espessura<input id="strokeWidth" type="number" min="0" max="20" value="10"></label></div>
+      <label>Animação<select id="animationType"><option value="scaling-words">Scaling words</option><option value="word-pop">Word Pop</option><option value="karaoke">Karaoke</option><option value="rainbow">Rainbow</option><option value="none">Sem animação</option></select></label>
+      <details class="advanced-controls"><summary>Ajustes avançados</summary><div class="stack">
+        <label>Largura máxima <output id="maxWidthOut">900px</output><input id="maxWidth" type="range" min="200" max="1080" value="900"></label>
+        <div class="control-row"><label>Cor da sombra<input id="shadowColor" type="color" value="#000000"></label><label>Profundidade da sombra <output id="shadowDepthOut">2</output><input id="shadowDepth" type="range" min="0" max="20" value="2"></label></div>
+        <div class="control-row"><label>Cor da caixa<input id="backgroundColor" type="color" value="#000000"></label><label>Opacidade da caixa <output id="backgroundOpacityOut">0</output><input id="backgroundOpacity" type="range" min="0" max="1" step="0.05" value="0"></label></div>
+        <label>Raio da caixa <output id="backgroundRadiusOut">0px</output><input id="backgroundRadius" type="range" min="0" max="80" value="0"></label>
+        <label>Duração mínima da palavra <output id="minWordDurationMsOut">80ms</output><input id="minWordDurationMs" type="range" min="30" max="2000" step="10" value="80"></label>
+        <label>Duração da animação <output id="animationDurationOut">0.25s</output><input id="animationDuration" type="range" min="0" max="4" step="0.05" value="0.25"></label>
+        <label>Intensidade de escala <output id="scaleAmountOut">0.15</output><input id="scaleAmount" type="range" min="0" max="0.8" step="0.01" value="0.15"></label>
+        <div class="control-row"><label>Pico do pop <output id="popScalePeakOut">1.08×</output><input id="popScalePeak" type="range" min="1" max="1.7" step="0.01" value="1.08"></label><label>Boost da fonte <output id="popFontSizeBoostOut">0.12</output><input id="popFontSizeBoost" type="range" min="0" max="0.8" step="0.01" value="0.12"></label></div>
+        <label>Duração do pop <output id="popDurationMsOut">220ms</output><input id="popDurationMs" type="range" min="40" max="2500" step="10" value="220"></label>
+        <div class="control-row"><label>Fade in <output id="fadeInMsOut">0ms</output><input id="fadeInMs" type="range" min="0" max="1500" step="25" value="0"></label><label>Fade out <output id="fadeOutMsOut">0ms</output><input id="fadeOutMs" type="range" min="0" max="1500" step="25" value="0"></label></div>
+      </div></details>
+      <label class="check"><input id="enableEmojis" type="checkbox" checked> Emojis habilitados</label>
+      <div class="row"><button id="resetCaptions" class="btn small">Restaurar</button><button id="savePresetBtn" class="btn small">Salvar como preset</button></div>
+    </div>
+
+    <div class="tab-panel" data-panel="layout">
+      <h3>Layout ativo</h3><p id="activeLayoutName" class="muted">Auto</p>
+      <label>Proporção do projeto<select id="projectRatio"><option value="9:16">9:16 Vertical</option><option value="1:1">1:1 Quadrado</option><option value="4:5">4:5 Feed</option><option value="16:9">16:9 Horizontal</option><option value="Original">Original</option></select></label>
+      <div id="perfStatus" class="technical-info">Preview: detectando aceleração…</div>
+      <label>Desfoque do fundo<input id="backgroundBlur" type="range" min="0" max="40" value="10"></label>
+      <label>Raio dos painéis<input id="panelRadius" type="range" min="0" max="80" value="0"></label>
+      <div class="tracking-status-card" id="faceTrackingStatus"><span class="tracking-dot"></span><div><b>Face tracking ativo</b><small id="faceTrackingDetails">Carregando análise do projeto…</small></div></div>
+      <div class="row"><button id="resetLayout" class="btn small">Restaurar layout</button></div>
+      <p class="note">O preview instantâneo usa a mesma origem e o mesmo enquadramento do render final.</p>
+    </div>
+
+
+    <div class="tab-panel" data-panel="auto-edit">
+      <div class="editor-side-head"><div><h3>Director AI</h3><p class="muted">Lê a transcrição e monta uma edição totalmente ajustável.</p></div><span class="ai-badge">LOCAL</span></div>
+      <label>Estilo<select id="autoEditStyle"><option value="podcast-viral">Podcast Viral</option><option value="noticias">Notícias</option><option value="politica">Política</option><option value="financas">Finanças</option><option value="fofoca">Fofoca</option><option value="documentario">Documentário</option><option value="gaming">Gaming</option><option value="storytelling">Storytelling</option><option value="mrbeast-like">Viral acelerado</option></select></label>
+      <label>Intensidade<select id="autoEditIntensity"><option value="clean">Clean</option><option value="normal" selected>Normal</option><option value="viral">Viral</option><option value="hyper">Hyper</option></select></label>
+      <div class="auto-edit-options"><label class="check"><input id="autoBroll" type="checkbox" checked> B-roll inteligente</label><label class="check"><input id="autoSfx" type="checkbox" checked> Efeitos sonoros</label><label class="check"><input id="autoMusic" type="checkbox" checked> Música</label><label class="check"><input id="autoEffects" type="checkbox" checked> Zooms / movimentos</label><label class="check"><input id="autoFilters" type="checkbox" checked> Filtros</label></div>
+      <button id="autoEditRun" class="btn primary">✦ Montar vídeo automaticamente</button>
+      <button id="autoEditReset" class="btn small danger">Remover decisões do Auto Edit</button>
+      <div id="autoEditStatus" class="render-status">Pronto para analisar a transcrição.</div>
+      <div id="autoEditDecisions" class="auto-edit-decisions"></div>
+    </div>
+
+    {% if user.is_admin %}<div class="tab-panel" data-panel="library">
+      <div class="editor-side-head"><div><h3>Biblioteca Local</h3><p class="muted">B-roll, SFX, músicas, filtros e efeitos no próprio PC.</p></div><span class="ai-badge">~2 GB</span></div>
+      <div id="assetPackStatus" class="asset-pack-status">Carregando biblioteca…</div>
+      <form id="assetImportForm" class="asset-import-form"><input id="assetImportFile" type="file" accept="video/*,audio/*,image/*"><div class="control-row"><select id="assetImportKind"><option value="broll">B-roll</option><option value="sfx">SFX</option><option value="music">Música</option><option value="overlay">Overlay</option><option value="background">Background</option></select><input id="assetImportTags" placeholder="tags: dinheiro, mercado"></div><button class="btn small" type="submit">⇧ Importar meu material</button></form>
+      <input id="assetSearch" placeholder="Ex.: dinheiro, Brasília, tecnologia…">
+      <div class="control-row"><select id="assetKind"><option value="">Tudo</option><option value="broll">B-roll</option><option value="sfx">SFX</option><option value="music">Música</option><option value="filter">Filtro</option><option value="effect">Efeito</option><option value="transition">Transição</option><option value="overlay">Overlay</option></select><button id="assetSearchBtn" class="btn">Buscar</button></div>
+      <p class="note">Clique em <b>+ playhead</b> para inserir um material exatamente no ponto atual da timeline.</p>
+      <div id="assetResults" class="asset-results"></div>
+    </div>{% endif %}
+
+    <div class="tab-panel" data-panel="text">
+      <h3>Texto / CTA</h3><label>Texto<input id="ctaText" placeholder="SIGA PARA MAIS"></label><label>Cor da tarja<input id="ctaBackground" type="color" value="#6d28d9"></label><label>Posição<select id="ctaPosition"><option value="top">Topo</option><option value="middle">Centro</option><option value="bottom" selected>Rodapé</option></select></label><button id="addCta" class="btn primary">＋ Adicionar CTA</button>
+      <hr><label>Título no vídeo<input id="headlineText" placeholder="SEU TÍTULO VIRAL AQUI"></label><button id="addHeadline" class="btn">＋ Adicionar título</button>
+    </div>
+
+    <div class="tab-panel" data-panel="brand">
+      <h3>Brand Kit</h3><p class="muted">Logos, marcas d'água e imagens reutilizáveis.</p>{% if brand_kits %}<div class="brand-kit-apply-box"><label>Kit salvo<select id="brandKitSelect"><option value="">Escolha um kit</option>{% for k in brand_kits %}<option value="{{k.id}}">{{k.name}}</option>{% endfor %}</select></label><button id="applyBrandKitBtn" type="button" class="btn accent">◇ Aplicar kit</button><span id="brandKitApplyStatus" class="muted"></span></div>{% else %}<p class="note">Crie um kit em <a href="/brand-kit">Brand Kit</a> para aplicar cores, fontes, CTA e logos em um clique.</p>{% endif %}<form id="brandUploadForm" class="stack"><input id="brandFile" type="file" accept=".png,.jpg,.jpeg,.webp"><input id="brandName" placeholder="Nome do asset"><select id="brandType"><option value="logo">Logo</option><option value="watermark">Marca d'água</option><option value="image">Imagem</option></select><button class="btn" type="submit">⇧ Adicionar ao Brand Kit</button></form><div id="brandAssetList" class="brand-assets"></div>
+      <h4>Camadas visíveis</h4><p class="muted">Arraste uma camada diretamente no vídeo para reposicionar.</p><div id="overlayList" class="overlay-list"></div><button id="resetOverlays" type="button" class="btn small danger">Limpar overlays</button>
+    </div>
+
+    <div class="tab-panel" data-panel="export">
+      <h3>Exportar</h3><div class="export-card"><b>Download automático · {{ output_resolution }}</b><p>Ao clicar em <b>Baixar MP4</b>, o ViralClip salva a edição, renderiza a versão final automaticamente e inicia o download quando terminar.</p><small class="muted">Visualização leve: {{ preview_resolution }} · arquivo final: {{ output_resolution }}</small></div><div id="renderStatus" class="render-status">Pronto para baixar.</div>
+      <div id="technicalInfo" class="technical-info"></div>
+    </div>
+  </aside>
+</div>
+
+
+<section class="card prompt-edit-card">
+  <div class="row between"><div><span class="create-kicker">PROMPT-TO-EDIT · NÃO DESTRUTIVO</span><h3>Edite com comandos</h3><p class="muted">Ex.: “sem zoom”, “remover B-roll”, “sem emojis”, “legenda amarela”. Cada comando cria um checkpoint antes de mudar a timeline.</p></div><button id="createCheckpoint" class="btn small" type="button">＋ Checkpoint</button></div>
+  <div class="prompt-edit-row"><input id="promptEditInput" placeholder="Digite uma alteração segura na edição"><button id="promptEditRun" class="btn accent" type="button">✦ Aplicar</button></div>
+  <div id="promptEditStatus" class="muted"></div><div class="quality-actions"><select id="qualityPlatform"><option value="">Geral</option><option value="youtube-shorts">YouTube Shorts</option><option value="tiktok">TikTok</option><option value="instagram-reels">Instagram Reels</option></select><button id="qualityCheckRun" class="btn small" type="button">✓ Quality Guard</button><span id="qualityCheckStatus" class="muted"></span></div>
+  <details class="revision-drawer"><summary>Histórico de versões</summary><div id="revisionList" class="revision-list"><span class="muted">Carregando checkpoints…</span></div></details>
+</section>
+
+<div class="preview-quality-note">Visualização em baixa qualidade • O clipe final será em resolução nativa.</div>
+<section class="v3-timeline card" id="multiTrackTimeline">
+  <div class="timeline-head"><div><b>Timeline Pro · Schema V3</b><span class="muted">Vídeo, B-roll, legendas, áudio, efeitos e overlays</span></div><span id="v3TimelineStatus" class="muted">Carregando…</span></div>
+  <div class="timeline-toolbar"><button id="timelineSplit" class="btn small">✂ Cortar</button><button id="timelineDuplicate" class="btn small">⧉ Duplicar</button><button id="timelineDelete" class="btn small danger">⌫ Excluir</button><label>Zoom <input id="timelineZoom" type="range" min="0.5" max="6" step="0.1" value="1"></label><span class="muted">Ctrl+roda: zoom · Shift+roda: horizontal</span></div>
+  <div class="v3-timeline-scroll"><div id="v3TrackList" class="v3-track-list"></div></div>
+  <div id="timelineInspector" class="timeline-inspector"><span class="muted">Selecione um item da timeline para editar.</span></div>
+</section>
+
+<section class="caption-timeline card" id="captionTimeline">
+  <div class="timeline-head"><div><b>Linha do tempo das legendas</b><span class="muted">Clique para corrigir texto e timing</span></div><div class="row"><button id="splitCue" class="btn small">✂ Dividir</button><button id="mergeCue" class="btn small">⤢ Mesclar próxima</button><button id="deleteCue" class="btn small danger">⌫ Excluir</button></div></div>
+  <div class="shortcut-help"><b>Atalhos</b> <span>Espaço: play/pause</span><span>←/→: ±5s</span><span>Ctrl+Z: desfazer</span><span>Ctrl+Shift+Z: refazer</span><span>Ctrl+S: salvar</span></div>
+  <canvas id="waveformCanvas" class="waveform-canvas" aria-label="Forma de onda do áudio"></canvas><div class="timeline-ruler" id="timelineRuler"></div><div class="cue-track" id="cueTrack"></div>
+  <div class="cue-editor" id="cueEditor"><span class="muted">Selecione uma legenda na timeline.</span></div>
+</section>
+
+<script>
+window.VIRALCLIP_EDITOR={
+  clipId:{{clip.id|tojson}}, projectId:{{clip.project_id|tojson}}, duration:{{(clip.end_time-clip.start_time)|tojson}},
+  state:{{state|tojson}}, cues:{{cues|tojson}}, captionPresets:{{caption_presets|tojson}}, layouts:{{layout_presets|tojson}}, userPresets:{{user_presets|tojson}},
+  studioTemplates:{{studio_templates|tojson}}, brandKits:{{brand_kits|tojson}}
+};
+</script><script src="/static/editor.js"></script>
+<script>
+(async function(){
+ const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('promptEditStatus'),list=document.getElementById('revisionList');
+ async function loadRevisions(){if(!clipId||!list)return;const r=await fetch(`/api/v1/clips/${clipId}/revisions`),d=await r.json();list.innerHTML=(d.revisions||[]).map(x=>`<div class="revision-row"><span><b>r${x.revision}</b> ${x.label||'Checkpoint'}<small>${x.created_at||''}</small></span><button class="btn small" data-rev="${x.revision}" type="button">Restaurar</button></div>`).join('')||'<span class="muted">Nenhum checkpoint ainda.</span>';list.querySelectorAll('[data-rev]').forEach(b=>b.onclick=async()=>{if(!confirm(`Restaurar a revisão r${b.dataset.rev}? O estado atual será salvo antes.`))return;status.textContent='Restaurando…';const rr=await fetch(`/api/v1/clips/${clipId}/revisions/${b.dataset.rev}/restore`,{method:'POST'});const dd=await rr.json();status.textContent=rr.ok?'✓ Revisão restaurada':(dd.error||'Falha ao restaurar');if(rr.ok)location.reload();});}
+ document.getElementById('createCheckpoint')?.addEventListener('click',async()=>{const label=prompt('Nome do checkpoint:','Checkpoint manual');if(label===null)return;status.textContent='Salvando checkpoint…';const r=await fetch(`/api/v1/clips/${clipId}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});status.textContent=r.ok?'✓ Checkpoint criado':'Falha ao criar checkpoint';await loadRevisions();});
+ document.getElementById('qualityCheckRun')?.addEventListener('click',async()=>{const p=document.getElementById('qualityPlatform').value,out=document.getElementById('qualityCheckStatus');out.textContent='Verificando render e safe-zones…';const r=await fetch(`/api/v1/clips/${clipId}/quality${p?'?platform='+encodeURIComponent(p):''}`),d=await r.json();if(!r.ok){out.textContent=d.error||'Falha no Quality Guard';return;}const errs=d.errors||[],warn=d.warnings||[];out.textContent=errs.length?`✕ ${errs.length} erro(s): ${errs[0]}`:warn.length?`⚠ ${warn.length} aviso(s): ${warn[0]}`:'✓ Quality Guard aprovado';});
+ document.getElementById('promptEditRun')?.addEventListener('click',async()=>{const promptText=document.getElementById('promptEditInput').value.trim();if(!promptText){status.textContent='Digite uma alteração.';return;}status.textContent='Aplicando comando não destrutivo…';const r=await fetch(`/api/v1/clips/${clipId}/prompt-edit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:promptText})});const d=await r.json();status.textContent=r.ok?`✓ ${d.actions.join(' · ')}`:(d.error||'Comando não suportado');if(r.ok)setTimeout(()=>location.reload(),650);});
+ await loadRevisions();
+})();
+</script>
+{% endblock %}

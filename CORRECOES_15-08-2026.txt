@@ -1,0 +1,19 @@
+ViralClip AI - correções desta versão
+
+1. Corrigido Smart Crop do FFmpeg no Windows.
+   - Causa: vírgulas internas da expressão max/min não estavam escapadas no filtergraph.
+   - Sintoma: No such filter: 'min(iw-1080'
+
+2. setup_amd_gpu.bat melhorado.
+   - Procura Python 3.12, 3.11 ou 3.10.
+   - Se nenhum estiver instalado, tenta instalar Python 3.12 automaticamente via winget.
+   - Usa a versão atual disponível de torch-directml em vez de fixar uma build antiga.
+
+3. Mantidas as correções anteriores.
+   - YouTube moderno com yt-dlp + EJS/Deno + fallback de PO Token.
+   - Encoder AMD h264_amf detectado automaticamente pelo FFmpeg.
+
+Ordem recomendada no Windows:
+  install.bat
+  setup_amd_gpu.bat
+  run.bat

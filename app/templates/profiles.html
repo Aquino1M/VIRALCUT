@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">TREINAMENTO</div><h1>Perfis de corte</h1><p class="muted">Salve preferências por criador, nicho ou página.</p></div></div>
+<div class="twocol">
+<form class="card formgrid" method="post" action="/profiles">
+  <label class="span2">Nome<input name="name" placeholder="Podcast polêmico" required></label>
+  <label>Mínimo (s)<input type="number" name="preferred_min" value="25"></label>
+  <label>Máximo (s)<input type="number" name="preferred_max" value="75"></label>
+  <label>Duração média<input type="number" name="avg_duration" value="45"></label>
+  <label>Agressividade<input type="number" step="0.1" min="0" max="1" name="aggression" value="0.6"></label>
+  <label class="span2">Palavras-chave<input name="keywords" placeholder="exposed, polêmica, bastidores, confissão"></label>
+  <button class="btn primary span2">Salvar perfil</button>
+</form>
+<div class="stack">
+{% for p in profiles %}<article class="card"><h3>{{ p.name }}</h3><p>{{ p.preferred_min }}–{{ p.preferred_max }}s • média {{ p.avg_duration }}s</p><p class="muted">{{ p.keywords or 'Sem palavras-chave extras' }}</p></article>{% else %}<div class="card empty">Nenhum perfil criado.</div>{% endfor %}
+</div>
+</div>
+{% endblock %}

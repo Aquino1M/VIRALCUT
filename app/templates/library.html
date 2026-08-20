@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Biblioteca · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Biblioteca{% endblock %}
+{% block content %}
+<div class="section-head"><div><span class="create-kicker">ASSET BRAIN</span><h1>Biblioteca Inteligente</h1><p class="muted">B-roll, SFX, música, efeitos, filtros e transições usados pelo Auto Edit.</p></div><a class="btn" href="/projects/new#auto-edit">✦ Usar no Auto Edit</a></div>
+<div class="library-status-grid"><div class="card stat-card"><small>Pacote</small><strong>LEVE · ~2 GB</strong><span>{{ asset_status.percent }}% utilizado</span></div><div class="card stat-card"><small>Assets gerenciados</small><strong>{{ asset_status.counts.values()|sum }}</strong><span>+ {{ (asset_status.user_size_bytes/1048576)|round(1) }} MB pessoais</span></div><div class="card stat-card"><small>Status</small><strong>{% if asset_status.initialized %}PRONTO{% else %}PREPARANDO{% endif %}</strong><span>O VIRALCLIP.bat cuida da biblioteca</span></div></div>
+<form class="card library-search" method="get"><input name="q" value="{{q}}" placeholder="Buscar: dinheiro, Brasília, tecnologia, suspense..."><select name="kind"><option value="">Todos</option>{% for k in ['broll','sfx','music','effect','filter','transition','user'] %}<option value="{{k}}" {% if kind==k %}selected{% endif %}>{{k|upper}}</option>{% endfor %}</select><button class="btn primary">Buscar</button></form>
+<div class="asset-browser-grid">{% for asset in assets %}<article class="asset-browser-card"><div class="asset-kind">{{asset.kind|upper}}</div><h3>{{asset.name}}</h3><p>{{ (asset.tags or [])|join(' · ') }}</p><div class="asset-meta"><span>{{asset.provider}}</span><span>{{asset.license}}</span>{% if asset.score is defined %}<b>{{asset.score}}</b>{% endif %}</div></article>{% else %}<div class="empty card">Nenhum asset encontrado. Execute o VIRALCLIP.bat ou importe mídia pelo Editor Pro.</div>{% endfor %}</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Templates · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Templates{% endblock %}
+{% block content %}
+<div class="section-head"><div><span class="create-kicker">SMART STUDIO</span><h1>Templates</h1><p class="muted">Salve uma edição completa e aplique em outros cortes sem refazer tudo.</p></div><a class="btn primary" href="/projects/new">Usar em novo projeto</a></div>
+
+<section class="v41-manager-grid">
+  <div class="card v41-create-card"><h2>Meus Templates</h2><p class="muted">Legenda + layout + Auto Edit em um preset reutilizável.</p>
+    <form id="createStudioTemplate" class="stack">
+      <label>Nome<input id="studioTemplateName" placeholder="Podcast Viral"></label>
+      <div class="control-row"><label>Legenda<select id="studioTemplateCaption">{% for p in caption_presets %}<option value="{{p.id}}">{{p.name}}</option>{% endfor %}</select></label><label>Layout<select id="studioTemplateLayout">{% for p in layout_presets %}<option value="{{p.id}}">{{p.name}}</option>{% endfor %}</select></label></div>
+      <div class="control-row"><label>Director AI<select id="studioTemplateStyle">{% for key in auto_styles %}<option value="{{key}}">{{key.replace('-', ' ')|title}}</option>{% endfor %}</select></label><label>Intensidade<select id="studioTemplateIntensity">{% for key in auto_intensities %}<option value="{{key}}">{{key|title}}</option>{% endfor %}</select></label></div>
+      <button class="btn primary">＋ Salvar template</button><label class="btn small file-btn">⇧ Importar JSON<input id="templateImportFile" type="file" accept=".json" hidden></label><small id="studioTemplateStatus" class="muted"></small>
+    </form>
+  </div>
+  <div class="v41-saved-grid" id="savedTemplates">{% for t in saved_templates %}<article class="card v41-saved-card" data-template-id="{{t.id}}"><div><small>STUDIO TEMPLATE</small><h3>{{t.name}}</h3><p>{{t.config.get('caption_preset_id','-')}} · {{t.config.get('layout_preset_id','-')}}</p></div><div class="row"><a class="btn small" href="/api/v1/templates/{{t.id}}/export">Exportar</a><button class="btn small template-duplicate">Duplicar</button><button class="btn small danger template-delete">Excluir</button></div></article>{% else %}<div class="empty card"><h3>Nenhum template salvo</h3><p>Crie o primeiro à esquerda. Dentro do Editor também é possível salvar o estado atual.</p></div>{% endfor %}</div>
+</section>
+
+<h2 class="catalog-title">Layouts inteligentes</h2><div class="template-grid">{% for p in layout_presets %}<article class="template-card"><span class="project-layout-mini">{% for panel in p.panels %}<i style="left:{{panel.x}}%;top:{{panel.y}}%;width:{{panel.w}}%;height:{{panel.h}}%"></i>{% endfor %}</span><h3>{{p.name}}</h3><p>{{p.description}}</p><span class="template-badge">Face Tracking</span></article>{% endfor %}</div>
+<h2 class="catalog-title">Legendas</h2><div class="template-grid compact">{% for p in caption_presets %}<article class="template-card caption-template-card"><div class="caption-template-preview">{{p.name}}</div><h3>{{p.name}}</h3><p>{{p.id}}</p></article>{% endfor %}</div>
+<h2 class="catalog-title">Director AI</h2><div class="auto-style-grid">{% for key, hint in auto_styles.items() %}<article class="card auto-style-card"><span>✦</span><h3>{{key.replace('-', ' ')|title}}</h3><p>{{hint}}</p></article>{% endfor %}</div>
+<script>
+const f=document.getElementById('createStudioTemplate');if(f)f.onsubmit=async e=>{e.preventDefault();const st=document.getElementById('studioTemplateStatus');st.textContent='Salvando...';const body={name:document.getElementById('studioTemplateName').value||'Meu Template',config:{caption_preset_id:document.getElementById('studioTemplateCaption').value,layout_preset_id:document.getElementById('studioTemplateLayout').value,auto_edit:{style:document.getElementById('studioTemplateStyle').value,intensity:document.getElementById('studioTemplateIntensity').value}}};const r=await fetch('/api/v1/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=r.ok?'✓ Template salvo':'Erro ao salvar';if(r.ok)setTimeout(()=>location.reload(),350)};
+document.getElementById('templateImportFile')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;const st=document.getElementById('studioTemplateStatus');try{const payload=JSON.parse(await file.text());const r=await fetch('/api/v1/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();st.textContent=r.ok?'✓ Template importado':(d.error||'Falha ao importar');if(r.ok)setTimeout(()=>location.reload(),350)}catch(err){st.textContent='JSON inválido: '+err.message}});
+document.querySelectorAll('.template-delete').forEach(b=>b.onclick=async()=>{const id=b.closest('[data-template-id]').dataset.templateId;if(confirm('Excluir este template?')){await fetch('/api/v1/templates/'+id,{method:'DELETE'});location.reload()}});document.querySelectorAll('.template-duplicate').forEach(b=>b.onclick=async()=>{const id=b.closest('[data-template-id]').dataset.templateId;const r=await fetch('/api/v1/templates/'+id+'/duplicate',{method:'POST'});if(r.ok)location.reload()});
+</script>
+{% endblock %}

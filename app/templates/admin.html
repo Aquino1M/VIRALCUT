@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Admin · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Admin{% endblock %}
+{% block content %}
+<div class="section-head">
+  <div><span class="create-kicker">ADMINISTRAÇÃO</span><h1>Processamento dos usuários</h1><p class="muted">O modo automático já escolhe a melhor opção disponível para cada tarefa.</p></div>
+  <a class="btn" href="/library">Gerenciar biblioteca</a>
+</div>
+<div class="admin-user-list">
+  {% for item in users %}
+  <article class="card admin-user-card">
+    <div><b>{{ item.email }}</b><small>{% if item.is_admin %}Administrador{% else %}Usuário{% endif %}</small></div>
+    <form action="/admin/users/{{ item.id }}/processing-mode" method="post">
+      <label for="mode-{{ item.id }}">Processamento</label>
+      <select id="mode-{{ item.id }}" name="mode" onchange="this.form.submit()">
+        <option value="auto" {% if item.compute_mode not in ['local','cloud'] %}selected{% endif %}>Automático (recomendado)</option>
+        <option value="local" {% if item.compute_mode=='local' %}selected{% endif %}>Neste computador</option>
+        <option value="cloud" {% if item.compute_mode=='cloud' %}selected{% endif %}>CPU Cloud</option>
+      </select>
+    </form>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

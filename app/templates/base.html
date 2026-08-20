@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('viralclip-theme')||'dark'}catch(e){}</script>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#8441ff">
+  <link rel="stylesheet" href="/static/style.css?v=42-hotfix">
+  <link rel="stylesheet" href="/font-css">
+</head>
+{% set path = request.url.path %}
+{% set full_editor = ('/edit' in path or '/bulk-editor' in path) %}
+<body class="{% if user %}authenticated{% endif %} {% if full_editor %}full-editor-page{% endif %}">
+  {% if user and not full_editor %}
+  <div class="studio-shell">
+    <aside class="studio-sidebar" id="studio-sidebar">
+      <div class="sidebar-brand-row">
+        <a class="studio-brand" href="/dashboard" aria-label="ViralClip Studio">
+          <span class="studio-brand-mark">V</span>
+          <span><b>ViralClip</b><small>Studio</small></span>
+        </a>
+        <button class="sidebar-collapse" type="button" data-sidebar-toggle aria-label="Recolher menu">‹</button>
+      </div>
+      <nav class="workflow-nav" aria-label="Navegação principal">
+        <a class="workflow-home {% if path == '/dashboard' %}active{% endif %}" href="/dashboard"><span>⌂</span><b>Início</b></a>
+        <section class="workflow-step {% if path.startswith('/projects') or path == '/videos' %}current{% endif %}">
+          <div class="workflow-label"><i></i><span class="num">01</span><span>Cortes e editor</span></div>
+          <a class="workflow-item {% if path == '/projects/new' %}active{% endif %}" href="/projects/new"><span>＋</span><b>Criar cortes</b><small>NOVO</small></a>
+          <a class="workflow-item {% if path == '/dashboard' or (path.startswith('/projects/') and path != '/projects/new') %}active{% endif %}" href="/dashboard"><span>▣</span><b>Projetos</b><small>ABRIR</small></a>
+          <a class="workflow-item {% if path == '/videos' %}active{% endif %}" href="/videos"><span>▶</span><b>Meus Vídeos</b><small>RENDERS</small></a>
+        </section>
+        {% if user.is_admin %}
+        <section class="workflow-step {% if path in ['/admin','/library'] %}current{% endif %}">
+          <div class="workflow-label"><i></i><span class="num">02</span><span>Administração</span></div>
+          <a class="workflow-item {% if path in ['/admin','/library'] %}active{% endif %}" href="/admin"><span>⚙</span><b>Admin</b><small>GESTÃO</small></a>
+        </section>
+        {% endif %}
+      </nav>
+      <div class="sidebar-user">
+        <span class="user-avatar">{{ (user.email or 'U')[:1]|upper }}</span>
+        <span class="user-copy"><b>{{ user.email.split('@')[0] }}</b><small>{{ user.email }}</small></span>
+        <form action="/logout" method="post"><button class="sidebar-logout" title="Sair">↪</button></form>
+      </div>
+    </aside>
+    <section class="studio-main">
+      <header class="studio-header">
+        <div class="studio-header-left">
+          <button class="mobile-menu-btn" type="button" data-sidebar-toggle aria-label="Abrir menu">☰</button>
+          <div class="studio-breadcrumb"><a href="/dashboard">ViralClip</a><span>/</span><b>{% block breadcrumb %}Studio{% endblock %}</b></div>
+        </div>
+        <div class="studio-header-actions">
+          <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Alternar tema">☼</button>
+          <a class="header-create-btn" href="/projects/new">＋ Criar</a>
+        </div>
+      </header>
+      <main class="container studio-content">
+  {% elif user %}
+      <header class="editor-minibar"><a href="/dashboard">← Projetos</a><strong>ViralClip Studio · Editor Pro</strong><button id="theme-toggle" class="icon-btn theme-toggle" type="button">☼</button></header>
+      <main class="container editor-root-container">
+  {% else %}
+      <header class="topbar public-topbar">
+        <a class="brand" href="/"><span class="studio-brand-mark">V</span> {{ app_name }}</a>
+        <nav><a href="/login">Entrar</a><a class="pill" href="/register">Criar conta</a></nav>
+      </header>
+      <main class="container">
+  {% endif %}
+
+  {% block content %}{% endblock %}
+
+  {% if user and not full_editor %}
+      </main>
+    </section>
+  </div>
+  <nav class="mobile-bottom-nav" aria-label="Navegação móvel">
+    <a class="{% if path == '/dashboard' %}active{% endif %}" href="/dashboard"><span>⌂</span><small>Início</small></a>
+    <a class="{% if path.startswith('/projects') and path != '/projects/new' %}active{% endif %}" href="/dashboard"><span>▣</span><small>Projetos</small></a>
+    <a class="mobile-create-fab" href="/projects/new" aria-label="Criar projeto">＋</a>
+    <a class="{% if path == '/videos' %}active{% endif %}" href="/videos"><span>▶</span><small>Vídeos</small></a>
+    {% if user.is_admin %}<a class="{% if path in ['/admin','/library'] %}active{% endif %}" href="/admin"><span>⚙</span><small>Admin</small></a>{% else %}<span aria-hidden="true"></span>{% endif %}
+  </nav>
+  {% else %}
+      </main>
+  {% endif %}
+  <script src="/static/shell.js" defer></script>
+  <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}));}</script>
+</body>
+</html>

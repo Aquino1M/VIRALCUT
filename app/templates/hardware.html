@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Hardware Local · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Hardware Local{% endblock %}
+{% block content %}
+{% set asr = capabilities.asr or {} %}
+{% set asr_results = asr.results or {} %}
+{% set selected_asr = asr.selected_backend or capabilities.transcription.backend %}
+{% set selected_result = asr_results.get(asr.selected_backend, {}) if asr.selected_backend else {} %}
+<div class="section-head"><div><span class="create-kicker">LOCAL WORKER · HARDWARE AUTO 3.0</span><h1>Hardware Local</h1><p class="muted">A V4.1 mede os backends de transcrição, escolhe a rota mais rápida que realmente funciona e ajusta o Studio ao seu PC sem reduzir a qualidade final.</p></div><div class="row"><button class="btn" id="revalidateHardware" type="button">Reavaliar hardware</button><a class="btn" href="/api/v1/capabilities" target="_blank">Ver capabilities</a></div></div>
+<div class="hardware-hero card"><div class="hardware-orb">⚡</div><div><small>DISPOSITIVO DETECTADO</small><h2>{{ capabilities.gpu_name or 'CPU' }}</h2><p>{{ capabilities.os or capabilities.platform }} · {{ capabilities.cpu_threads }} threads · {{ (capabilities.ram_mb/1024)|round(1) }} GB RAM</p></div><span class="profile-pill">{{ capabilities.profile.label }}</span></div>
+<div class="hardware-grid">
+  <div class="card hardware-stat"><small>GPU</small><strong>{{ capabilities.gpu_vendor|upper }}</strong><span>{{ capabilities.gpu_name }}</span></div>
+  <div class="card hardware-stat"><small>Transcrição benchmark</small><strong>{{ selected_asr }}</strong><span>Whisper {{ capabilities.transcription.model }}{% if selected_result.x_realtime %} · {{ selected_result.x_realtime|round(2) }}× realtime{% endif %}</span></div>
+  <div class="card hardware-stat"><small>Render verificado</small><strong>{{ capabilities.render.encoder }}</strong><span>{% if capabilities.render.verified %}✓ benchmark aprovado{% else %}fallback seguro{% endif %}</span></div>
+  <div class="card hardware-stat"><small>Face Tracking</small><strong>{{ capabilities.analysis.tracking_fps }} fps</strong><span>Análise em {{ capabilities.analysis.width }}px · somente cortes selecionados</span></div>
+  <div class="card hardware-stat"><small>Preview do navegador</small><strong id="browserAccelerationStatus">Detectando...</strong><span>WebGPU quando disponível · WebGL/Canvas fallback</span></div>
+</div>
+<div class="card hardware-routing"><h3>Roteamento automático V4.1</h3><div><b>NVIDIA</b><span>CUDA benchmarkado → Vulkan → CPU</span></div><div><b>AMD</b><span>Vulkan benchmarkado → DirectML aprovado → CPU</span></div><div><b>Intel</b><span>Vulkan benchmarkado → DirectML aprovado → CPU</span></div><div><b>CPU</b><span>faster-whisper INT8 como fallback universal</span></div><p class="note">Disponibilidade não significa seleção: a aceleração só vence depois do benchmark real. Falhas de DirectML ficam registradas para não serem repetidas em cada projeto.</p></div>
+<div class="card hardware-routing"><h3>Resultado do benchmark ASR</h3>
+{% if asr_results %}
+  {% for backend_id, result in asr_results.items() %}<div><b>{{ backend_id }}</b><span>{% if result.ok %}✓ {{ (result.x_realtime or 0)|round(2) }}× realtime{% else %}Incompatível nesta configuração{% if result.error %} · {{ result.error }}{% endif %}{% endif %}</span></div>{% endfor %}
+  {% if asr.benchmarked_at %}<p class="note">Último teste: {{ asr.benchmarked_at }}</p>{% endif %}
+{% else %}<p class="note">O benchmark será gravado pelo setup/revalidação. Até lá, o Worker mantém fallback de CPU.</p>{% endif %}
+</div>
+<div class="card worker-pair-card"><div><small>PAIRING PARA O FUTURO FRONTEND VERCEL</small><h3>Código do Local Worker</h3><p class="muted">No futuro, o usuário informa este código no site para autorizar o navegador a enviar jobs ao PC. O vídeo pesado continua local.</p></div><code class="pair-code">{{ pair_code }}</code></div>
+<script>
+(() => {
+  const status = document.getElementById('browserAccelerationStatus');
+  const update = (mode) => { if (status) status.textContent = String(mode || 'canvas2d').toUpperCase(); };
+  update(window.ViralClipBrowserAcceleration || document.documentElement.dataset.browserAcceleration || 'detectando');
+  window.addEventListener('viralclip:browser-acceleration', (event) => update(event.detail && event.detail.mode));
+  const button = document.getElementById('revalidateHardware');
+  if (button) button.addEventListener('click', async () => {
+    button.disabled = true; button.textContent = 'Reavaliando...';
+    try { const response = await fetch('/api/v1/hardware/revalidate', { method: 'POST' }); if (!response.ok) throw new Error('Falha ao reavaliar hardware'); location.reload(); }
+    catch (error) { button.disabled = false; button.textContent = 'Reavaliar hardware'; alert(error.message || 'Não foi possível reavaliar o hardware.'); }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="project-hero card">
+  <div class="project-source">
+    <div class="source-thumb">{% if project.thumbnail_path %}<img src="/projects/{{ project.id }}/thumb" alt="">{% else %}<span>▶</span>{% endif %}</div>
+    <div class="project-copy">
+      <div class="eyebrow">PROJETO</div>
+      <h1>{{ project.title }}</h1>
+      <p class="muted">{{ project.channel_label or project.source_type|upper }}{% if project.duration %} • {{ (project.duration // 60)|int }}m {{ (project.duration % 60)|int }}s{% endif %} • {{ total }} cortes</p>
+      <div class="row wrap project-actions">
+        {% if project.source_value %}<a class="btn small" href="{{ project.source_value }}" target="_blank" rel="noopener">↗ Abrir original</a>{% endif %}
+        <a class="btn small primary" href="/projects/{{ project.id }}/new-clip">＋ Novo Clipe</a>
+        <label class="btn small file-btn">⇧ Importar vídeos<input id="importFile" type="file" accept=".mp4,.mov,.mkv,.avi" hidden></label>
+        <button class="btn small" id="selectMode">☑ Selecionar</button>
+        <button class="btn small accent" id="bulkOpen" disabled>✦ Editar selecionados</button>
+        <a class="btn small" href="/projects/{{ project.id }}/download-all">⇩ Baixar todos</a><button class="btn small" type="button" id="shareProject">⧉ Copiar link</button><button class="btn small" type="button" id="defaultsToggle">⚙ Estilo padrão</button>
+      </div>
+      <form id="importForm" action="/projects/{{ project.id }}/import" method="post" enctype="multipart/form-data" hidden><input id="importHidden" type="file" name="upload"></form>
+    </div>
+  </div>
+  <span class="badge {{ project.status }}">{{ project.status }}</span>
+</section>
+
+<section id="projectDefaults" class="card project-defaults" hidden>
+  <div class="row between"><div><h3>Estilo padrão do projeto</h3><p class="muted">Novos cortes herdam estas escolhas. Cortes já personalizados não são sobrescritos.</p></div><button class="icon-btn" type="button" id="defaultsClose">×</button></div>
+  <div class="defaults-grid">
+    <label>Legenda<select id="defaultCaption">{% for p in caption_presets %}<option value="{{p.id}}" {% if p.id==(settings.caption_preset_id or 'green-fresh') %}selected{% endif %}>{{p.name}}</option>{% endfor %}</select></label>
+    <label>Layout<select id="defaultLayout">{% for p in layout_presets %}<option value="{{p.id}}" {% if p.id==(settings.layout_preset_id or 'auto') %}selected{% endif %}>{{p.name}}</option>{% endfor %}</select></label>
+    <label>Fonte<select id="defaultFont">{% for f in fonts %}<option value="{{f.family}}" {% if f.family==(settings.caption_font or 'Bangers') %}selected{% endif %}>{{f.family}}</option>{% endfor %}</select></label>
+    <label>Idioma<input id="defaultLanguage" value="{{settings.language or ''}}" placeholder="pt"></label>
+    <label>Studio Template<select id="defaultStudioTemplate"><option value="">Nenhum</option>{% for t in studio_templates %}<option value="{{t.id}}" {% if project.template_id==t.id %}selected{% endif %}>{{t.name}}</option>{% endfor %}</select></label>
+    <label>Brand Kit<select id="defaultBrandKit"><option value="">Nenhum</option>{% for k in brand_kits %}<option value="{{k.id}}" {% if project.brand_kit_id==k.id %}selected{% endif %}>{{k.name}}</option>{% endfor %}</select></label>
+    <label class="span2">Intenção / prompt da IA<textarea id="defaultPrompt" rows="2">{{settings.prompt or ''}}</textarea></label>
+  </div>
+  <div class="row"><label class="check"><input id="defaultEmojis" type="checkbox" {% if settings.emojis is not sameas false %}checked{% endif %}> Emojis</label><label class="check"><input id="defaultCta" type="checkbox" {% if settings.cta_enabled %}checked{% endif %}> CTA padrão</label><button id="saveProjectDefaults" type="button" class="btn primary">Salvar padrão</button><span id="defaultsStatus" class="muted"></span></div>
+</section>
+
+{% if project.status not in ['done','error'] %}
+<div class="card statuscard worker-progress-card" id="workerStatus">
+  <div class="row between worker-progress-head"><div><span class="worker-live-dot"></span><b id="statusMessage">{{ project.message }}</b></div><span id="statusPct">{{ project.progress }}%</span></div>
+  <div class="progress big"><i id="statusBar" style="width: {{ project.progress }}%"></i></div>
+  <div class="worker-details">
+    <div><small>ETAPA</small><strong id="workerStage">{{ worker_job.stage if worker_job else 'iniciando' }}</strong></div>
+    <div><small>PROGRESSO DA ETAPA</small><strong id="workerStagePct">{% if worker_job %}{{ worker_job.percent }}%{% else %}—{% endif %}</strong></div>
+    <div><small>BACKEND</small><strong id="workerBackend">{{ worker_job.backend if worker_job and worker_job.backend else 'automático' }}</strong></div>
+    <div><small>RESTANTE</small><strong id="workerEta">calculando…</strong></div>
+    <div><small>HEARTBEAT</small><strong id="workerHeartbeat">aguardando…</strong></div>
+  </div>
+  <div class="row wrap worker-controls">
+    <button class="btn small" type="button" id="workerPause" {% if not worker_job %}disabled{% endif %}>Ⅱ Pausar</button>
+    <button class="btn small" type="button" id="workerResume" {% if not worker_job %}disabled{% endif %}>▶ Continuar</button>
+    <button class="btn small danger" type="button" id="workerCancel" {% if not worker_job %}disabled{% endif %}>× Cancelar</button>
+    <span class="muted" id="workerControlStatus">O processamento pesado continua no Local Worker mesmo se a página for atualizada.</span>
+  </div>
+</div>
+{% endif %}
+{% if project.status == 'error' %}
+<div class="card statuscard error-recovery">
+  <div class="row between">
+    <div><b>Processamento interrompido</b><p class="muted">{{ project.message }}</p></div>
+    <form method="post" action="/projects/{{ project.id }}/retry"><button class="btn primary" type="submit">↻ Reprocessar projeto</button></form>
+  </div>
+</div>
+{% endif %}
+
+<div class="library-toolbar card">
+  <div><h2>Seus cortes</h2><p class="muted">Ajuste, edite legendas ou baixe seus clipes.</p><span class="proxy-note">Visualização rápida • o clipe final permanece em resolução nativa</span></div>
+  <form class="toolbar-controls" method="get">
+    <button type="button" class="btn small" id="formatToggle">▯ Formato real</button><button type="button" class="btn small" id="selectAll">Selecionar todos</button>
+    <select name="page_size" onchange="this.form.submit()">{% for n in [12,24,36,48,60,72,84,96] %}<option value="{{n}}" {% if n==page_size %}selected{% endif %}>{{n}} / pág</option>{% endfor %}</select>
+    <select name="filter" onchange="this.form.submit()"><option value="all" {% if filter=='all' %}selected{% endif %}>Todos</option><option value="ready" {% if filter=='ready' %}selected{% endif %}>Prontos</option><option value="rendering" {% if filter=='rendering' %}selected{% endif %}>Renderizando</option><option value="rendered" {% if filter=='rendered' %}selected{% endif %}>Renderizados</option><option value="scheduled" {% if filter=='scheduled' %}selected{% endif %}>Agendados</option><option value="published" {% if filter=='published' %}selected{% endif %}>Publicados</option><option value="error" {% if filter=='error' %}selected{% endif %}>Erros</option><option value="not_rendered" {% if filter=='not_rendered' %}selected{% endif %}>Não renderizados</option></select>
+    <select name="sort" onchange="this.form.submit()"><option value="score" {% if sort=='score' %}selected{% endif %}>Por Score</option><option value="time" {% if sort=='time' %}selected{% endif %}>Por Tempo</option><option value="duration" {% if sort=='duration' %}selected{% endif %}>Por Duração</option><option value="title" {% if sort=='title' %}selected{% endif %}>Título (A-Z)</option></select>
+    <input type="hidden" name="page" value="1">
+    <span class="count-pill">{{ total }} cortes</span>
+  </form>
+</div>
+
+<dialog class="card bulk-smart-bar bulk-smart-dialog" id="bulkSmartBar" style="inset:0;width:720px;max-width:calc(100vw - 32px);margin:auto;grid-template-columns:1fr;align-items:start">
+  <form method="dialog" class="bulk-dialog-close"><button class="icon-btn" type="submit" aria-label="Fechar">×</button></form>
+  <div><span class="create-kicker">SMART STUDIO · COMMAND CENTER</span><h3>Editar selecionados com IA</h3><p class="muted"><span id="bulkSelectedCount">0</span> cortes selecionados · todas as decisões continuam editáveis.</p></div>
+  <div class="bulk-smart-controls">
+    <label>Template<select id="bulkTemplate"><option value="">Manter atual</option>{% for t in studio_templates %}<option value="{{t.id}}">{{t.name}}</option>{% endfor %}</select></label>
+    <label>Brand Kit<select id="bulkBrandKit"><option value="">Manter atual</option>{% for k in brand_kits %}<option value="{{k.id}}">{{k.name}}</option>{% endfor %}</select></label>
+    <label>Direção<select id="bulkIntensity"><option value="clean">Leve</option><option value="normal" selected>Normal</option><option value="viral">Viral</option><option value="hyper">Hyper</option></select></label>
+    <label class="check command-check"><input id="bulkAutoDirector" type="checkbox" checked> Auto Director</label>
+    <label class="check command-check"><input id="bulkBroll" type="checkbox" checked> B-roll AI</label>
+    <button class="btn accent" type="button" id="bulkApplySmart">✦ Aplicar Smart Studio</button>
+    <button class="btn" type="button" id="bulkRenderSmart">⇩ Preparar MP4</button>
+    <span class="muted" id="bulkSmartStatus"></span>
+  </div>
+</dialog>
+
+<div class="clipsgrid real-cards" id="clipsGrid">
+{% for c in clips %}
+  <article class="clip card clip-card" data-clip-id="{{ c.id }}" data-editor-revision="{{ c.editor_revision }}" data-preview-stale="{{ 1 if c.preview_stale else 0 }}">
+    <label class="clip-select"><input type="checkbox" value="{{ c.id }}"></label>
+    <div class="video-shell{% if c.preview_stale %} preview-syncing{% endif %}" style="aspect-ratio:{{ c.aspect_css }}">
+      {% if c.preview_stale %}<video controls preload="none" data-project-preview></video><div class="preview-sync-state" data-preview-sync-state><span class="media-loading-spinner"></span><b>Atualizando preview</b><small>Aplicando a edição salva no editor…</small></div>
+      {% elif c.video_path or c.preview_path %}<video controls preload="{{ performance.browser_preload }}" data-project-preview {% if c.thumbnail_path %}poster="/clips/{{ c.id }}/thumb?v={{ c.editor_revision }}"{% endif %} src="/clips/{{ c.id }}/preview-video?v={{ c.editor_revision }}"></video>{% elif c.thumbnail_path %}<img src="/clips/{{ c.id }}/thumb?v={{ c.editor_revision }}" alt="thumb">{% endif %}
+      <span class="duration-badge">{{ '%.0f'|format(c.end_time-c.start_time) }}s</span>
+      <span class="score viral-score-pill" title="ViralScore 3.0 estimado e calibrável">{{ c.viral_v3.score }}</span>
+    </div>
+    <div class="clip-body">
+      <h3>{{ c.title }}</h3>
+      <p class="clip-time">{{ '%.1f'|format(c.start_time) }}s → {{ '%.1f'|format(c.end_time) }}s • {{ '%.0f'|format(c.end_time-c.start_time) }}s</p>
+      {% if c.reason %}<p class="reason">{{ c.reason[:180] }}</p>{% elif c.hook %}<p class="reason">{{ c.hook[:180] }}</p>{% endif %}
+      <div class="status-row workflow-{{ c.workflow_status }}"><span class="status-dot"></span>{{ c.workflow_status }}{% if c.render_encoder %}<span>• {{ c.render_encoder }}</span>{% endif %}</div>
+      <details class="viral-score-breakdown"><summary>ViralScore 3.0 {{ c.viral_v3.score }}/100 · {{ c.viral_v3.label }}</summary><div class="score-breakdown-grid">{% for key, value in c.viral_v3.breakdown.items() %}<span><small>{{ key }}</small><b>{{ value }}</b></span>{% endfor %}{% for key, value in c.viral_v3.structure.items() %}<span><small>{{ key }}</small><b>{{ value }}</b></span>{% endfor %}</div>{% if c.viral_v3.explanation.strengths %}<p class="muted"><b>Fortes:</b> {% for x in c.viral_v3.explanation.strengths %}{{x.signal}} {{x.score}}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}{% if c.viral_v3.explanation.risks %}<p class="muted"><b>Riscos:</b> {% for x in c.viral_v3.explanation.risks %}{{x.signal}} {{x.score}}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}<p class="muted">Estimativa editorial; histórico real do criador calibra o score quando métricas observadas forem registradas.</p></details>
+      <details class="technical-drawer"><summary>Informações técnicas</summary><div><b>Encoder:</b> {{c.render_encoder or '-'}}<br><b>Tamanho:</b> {% if c.file_size %}{{'%.1f'|format(c.file_size/1024/1024)}} MB{% else %}-{% endif %}<br><b>Render:</b> {% if c.render_seconds %}{{'%.1f'|format(c.render_seconds)}}s{% else %}-{% endif %}<br><b>Saída:</b> {{ output_resolution }}</div></details>
+      <div class="row wrap clip-actions"><a class="btn small primary" href="/clips/{{ c.id }}/edit">✦ Editar</a><a class="btn small" href="/clips/{{ c.id }}/download">⇩ Baixar</a><a class="btn small" href="/clips/{{ c.id }}/preview-video?v={{ c.editor_revision }}" target="_blank">▶ Preview</a></div>
+    </div>
+  </article>
+{% else %}<div class="empty card" id="waiting"><h3>Processando...</h3><p>Os cortes vão aparecer aqui quando forem renderizados.</p></div>{% endfor %}
+</div>
+
+{% if pages > 1 %}<nav class="pagination card"><span>Mostrando página {{ page }} de {{ pages }}</span><div class="row">{% if page>1 %}<a class="btn small" href="?page={{page-1}}&page_size={{page_size}}&sort={{sort}}&filter={{filter}}">← Anterior</a>{% endif %}{% if page<pages %}<a class="btn small" href="?page={{page+1}}&page_size={{page_size}}&sort={{sort}}&filter={{filter}}">Próxima →</a>{% endif %}</div></nav>{% endif %}
+
+<script>
+const projectId={{ project.id|tojson }};
+const selectBtn=document.getElementById('selectMode'), bulkBtn=document.getElementById('bulkOpen'), grid=document.getElementById('clipsGrid'), smartBar=document.getElementById('bulkSmartBar');
+function selected(){return [...document.querySelectorAll('.clip-select input:checked')].map(x=>x.value)}
+function syncSelection(){const ids=selected();if(bulkBtn){bulkBtn.disabled=!ids.length;bulkBtn.textContent=ids.length?`✦ Editar selecionados (${ids.length})`:'✦ Editar selecionados';}if(smartBar&&!ids.length&&smartBar.open)smartBar.close();const count=document.getElementById('bulkSelectedCount');if(count)count.textContent=ids.length;return ids;}
+if(selectBtn){selectBtn.onclick=()=>{grid.classList.toggle('selecting'); selectBtn.classList.toggle('active');syncSelection();};}
+document.querySelectorAll('.clip-select input').forEach(x=>x.onchange=syncSelection);
+if(bulkBtn)bulkBtn.onclick=()=>{if(selected().length&&smartBar)smartBar.showModal()};
+async function refreshEditedProjectPreview(card){const clipId=card.dataset.clipId,revision=Number(card.dataset.editorRevision||1),status=card.querySelector('[data-preview-sync-state]'),video=card.querySelector('[data-project-preview]');try{const queued=await fetch(`/clips/${encodeURIComponent(clipId)}/project-preview-render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision})});const job=await queued.json();if(!queued.ok)throw new Error(job.error||'Falha ao preparar preview');for(let i=0;i<900;i++){await new Promise(resolve=>setTimeout(resolve,1000));const response=await fetch(`/renders/${encodeURIComponent(job.render_id)}`),render=await response.json();if(!response.ok)throw new Error(render.error||'Falha ao consultar preview');const small=status?.querySelector('small');if(small)small.textContent=`Aplicando a edição salva… ${Math.round(Number(render.progress||0))}%`;if(render.status==='error')throw new Error(render.error_message||'Falha ao gerar preview');if(render.status==='done'){const stamp=`${revision}-${Date.now()}`;status?.remove();card.querySelector('.video-shell')?.classList.remove('preview-syncing');if(video){video.src=`/clips/${encodeURIComponent(clipId)}/preview-video?v=${stamp}`;video.poster=`/clips/${encodeURIComponent(clipId)}/thumb?v=${stamp}`;video.preload='metadata';video.load()}card.dataset.previewStale='0';return}}throw new Error('O preview excedeu o tempo esperado.')}catch(error){if(status){status.classList.add('error');const title=status.querySelector('b'),small=status.querySelector('small');if(title)title.textContent='Falha ao atualizar preview';if(small)small.textContent=String(error.message||error)}}}
+Promise.allSettled([...document.querySelectorAll('.clip-card[data-preview-stale="1"]')].map(refreshEditedProjectPreview));
+async function projectCommand(extra={}){const ids=selected(),status=document.getElementById('bulkSmartStatus');if(!ids.length)return;if(status)status.textContent='Aplicando...';const payload={clip_ids:ids,template_id:document.getElementById('bulkTemplate')?.value||'',brand_kit_id:document.getElementById('bulkBrandKit')?.value||'',auto_director:document.getElementById('bulkAutoDirector')?.checked||false,broll:document.getElementById('bulkBroll')?.checked||false,intensity:document.getElementById('bulkIntensity')?.value||'normal',...extra};const r=await fetch(`/api/v1/projects/${projectId}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok){if(status)status.textContent=d.error||'Falha';return;}if(status)status.textContent=extra.render?`✓ ${d.render_queued} MP4(s) na fila`:`✓ Smart Studio aplicado em ${d.selected} corte(s)`;if(!extra.render)setTimeout(()=>location.reload(),700);}
+document.getElementById('bulkApplySmart')?.addEventListener('click',()=>projectCommand());document.getElementById('bulkRenderSmart')?.addEventListener('click',()=>projectCommand({render:true}));
+
+const videoAskBtn=document.getElementById('videoAskBtn');if(videoAskBtn)videoAskBtn.addEventListener('click',async()=>{const q=document.getElementById('semanticQuery').value.trim(),box=document.getElementById('semanticResults');if(!q){box.textContent='Digite uma pergunta sobre o vídeo.';return;}box.textContent='Consultando somente o transcript local…';const r=await fetch(`/api/v1/projects/${projectId}/ask?q=${encodeURIComponent(q)}`),d=await r.json();if(!r.ok){box.textContent=d.error||'Falha';return;}box.innerHTML=`<div class="semantic-answer"><b>Resposta ancorada no transcript</b><p>${(d.answer||'').replace(/</g,'&lt;')}</p></div>`+(d.evidence||[]).map(x=>`<button class="semantic-hit" type="button"><b>${Number(x.start).toFixed(1)}s</b><span>${(x.text||'').replace(/</g,'&lt;')}</span></button>`).join('');});
+const semanticBtn=document.getElementById('semanticSearchBtn');
+if(semanticBtn) semanticBtn.addEventListener('click',async()=>{const q=document.getElementById('semanticQuery').value.trim(),box=document.getElementById('semanticResults');if(!q){box.textContent='Digite o que deseja encontrar.';return;}box.textContent='Buscando no transcript…';const r=await fetch(`/api/v1/projects/${projectId}/search?q=${encodeURIComponent(q)}`);const d=await r.json();if(!r.ok){box.textContent=d.error==='transcript_unavailable'?'Transcript ainda não disponível.':(d.error||'Falha na busca');return;}box.innerHTML=(d.results||[]).map(x=>`<button class="semantic-hit" type="button" data-start="${x.start}"><b>${Number(x.start).toFixed(1)}s → ${Number(x.end).toFixed(1)}s</b><span>${(x.text||'').replace(/</g,'&lt;')}</span><small>relevância ${Math.round((x.score||0)*100)}%</small></button>`).join('')||'<span class="muted">Nenhum trecho relevante.</span>';box.querySelectorAll('.semantic-hit').forEach(el=>el.onclick=()=>{const start=Number(el.dataset.start||0);const nearest=[...document.querySelectorAll('.clip-card')].find(card=>{const a=card.querySelector('.clip-time')?.textContent||'';const m=a.match(/([\d.]+)s/);return m&&Math.abs(Number(m[1])-start)<90});nearest?.scrollIntoView({behavior:'smooth',block:'center'});});});
+const formatBtn=document.getElementById('formatToggle');function applyCardFormat(square){grid.classList.toggle('compact-cards',square);formatBtn?.classList.toggle('active',square);if(formatBtn)formatBtn.textContent=square?'▯ Formato real':'□ Quadrado';try{localStorage.setItem('viralclip-card-square',square?'1':'0')}catch{}}if(formatBtn){let square=false;try{square=localStorage.getItem('viralclip-card-square')==='1'}catch{}applyCardFormat(square);formatBtn.onclick=()=>applyCardFormat(!grid.classList.contains('compact-cards'));}
+const selectAll=document.getElementById('selectAll');if(selectAll)selectAll.onclick=()=>{grid.classList.add('selecting');selectBtn?.classList.add('active');const boxes=[...document.querySelectorAll('.clip-select input')],all=boxes.length&&boxes.every(x=>x.checked);boxes.forEach(x=>x.checked=!all);syncSelection();selectAll.textContent=all?'Selecionar todos':'Limpar seleção'};
+document.getElementById('shareProject')?.addEventListener('click',async e=>{try{await navigator.clipboard.writeText(location.href);e.currentTarget.textContent='✓ Link copiado';setTimeout(()=>e.currentTarget.textContent='⧉ Copiar link',1800)}catch{prompt('Copie o link:',location.href)}});
+const defaultsBox=document.getElementById('projectDefaults'),defaultsToggle=document.getElementById('defaultsToggle');if(defaultsToggle)defaultsToggle.onclick=()=>{defaultsBox.hidden=!defaultsBox.hidden};document.getElementById('defaultsClose')?.addEventListener('click',()=>defaultsBox.hidden=true);document.getElementById('saveProjectDefaults')?.addEventListener('click',async()=>{const status=document.getElementById('defaultsStatus');status.textContent='Salvando...';const payload={caption_preset_id:document.getElementById('defaultCaption').value,layout_preset_id:document.getElementById('defaultLayout').value,caption_font:document.getElementById('defaultFont').value,language:document.getElementById('defaultLanguage').value,template_id:document.getElementById('defaultStudioTemplate')?.value||'',brand_kit_id:document.getElementById('defaultBrandKit')?.value||'',prompt:document.getElementById('defaultPrompt').value,emojis:document.getElementById('defaultEmojis').checked,cta_enabled:document.getElementById('defaultCta').checked};const r=await fetch(`/projects/${projectId}/defaults`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});status.textContent=r.ok?'✓ Padrão salvo':'Erro ao salvar';});
+const importFile=document.getElementById('importFile');if(importFile)importFile.onchange=()=>{if(!importFile.files[0])return; const f=document.getElementById('importHidden'); const dt=new DataTransfer();dt.items.add(importFile.files[0]);f.files=dt.files;document.getElementById('importForm').submit();};
+{% if project.status not in ['done','error'] %}
+const initialProjectStatus={{ project.status|tojson }};
+let lastProjectStatus=initialProjectStatus;
+let currentWorkerJobId={{ (worker_job.id if worker_job else none)|tojson }};
+function fmtEta(value){const n=Number(value);if(!Number.isFinite(n)||n<1)return 'calculando…';const m=Math.floor(n/60),s=Math.round(n%60);return m?`~${m}m ${s}s`:`~${s}s`;}
+function heartbeatLabel(iso){if(!iso)return 'aguardando…';const sec=Math.max(0,Math.round((Date.now()-Date.parse(iso))/1000));return sec<5?'agora':`${sec}s atrás`;}
+function applyWorker(worker){if(!worker)return;currentWorkerJobId=worker.id;const stage=document.getElementById('workerStage'),stagePct=document.getElementById('workerStagePct'),backend=document.getElementById('workerBackend'),eta=document.getElementById('workerEta'),hb=document.getElementById('workerHeartbeat');if(stage)stage.textContent=worker.stage||worker.status||'iniciando';if(stagePct)stagePct.textContent=(worker.percent??0)+'%';if(backend)backend.textContent=worker.backend||'automático';if(eta)eta.textContent=fmtEta(worker.eta_seconds);if(hb)hb.textContent=heartbeatLabel(worker.heartbeat_at);['workerPause','workerResume','workerCancel'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=false;});}
+async function workerAction(action){if(!currentWorkerJobId)return;const status=document.getElementById('workerControlStatus');if(status)status.textContent='Enviando comando ao Local Worker…';const r=await fetch(`/api/v1/jobs/${currentWorkerJobId}/${action}`,{method:'POST'});const d=await r.json();if(r.ok){applyWorker(d);if(status)status.textContent=action==='pause'?'Job pausado.':action==='resume'?'Job retomado.':'Cancelamento solicitado.';}else if(status)status.textContent=d.error||'Falha no comando';}
+document.getElementById('workerPause')?.addEventListener('click',()=>workerAction('pause'));
+document.getElementById('workerResume')?.addEventListener('click',()=>workerAction('resume'));
+document.getElementById('workerCancel')?.addEventListener('click',()=>{if(confirm('Cancelar o processamento deste projeto?'))workerAction('cancel')});
+setInterval(async()=>{
+  const r=await fetch('/api/projects/'+projectId); if(!r.ok)return;
+  const d=await r.json();
+  const msg=document.getElementById('statusMessage'),pct=document.getElementById('statusPct'),bar=document.getElementById('statusBar');
+  if(msg)msg.textContent=d.message;if(pct)pct.textContent=d.progress+'%';if(bar)bar.style.width=d.progress+'%';applyWorker(d.worker);
+  if((d.status==='done'||d.status==='error')&&lastProjectStatus!==d.status){lastProjectStatus=d.status;location.reload();return;}
+  lastProjectStatus=d.status;
+},1500);
+{% endif %}
+</script>
+{% endblock %}

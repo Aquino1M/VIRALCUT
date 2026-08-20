@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Compute Fabric · ViralClip V4.2{% endblock %}
+{% block breadcrumb %}Compute Fabric{% endblock %}
+{% block content %}
+<div class="section-head"><div><span class="create-kicker">V4.2 · ADAPTIVE COMPUTE FABRIC</span><h1>CPU/GPU local + Lightning CPU grátis</h1><p class="muted">O scheduler escolhe a rota pelo menor ETA e usa a Lightning apenas como aceleração. GPU/T4 remota e máquinas pagas são bloqueadas nesta versão.</p></div><div class="row"><a class="btn" href="/hardware">Hardware local</a><button class="btn" id="refreshCompute">Atualizar</button></div></div>
+
+<div class="card compute-safety-banner"><strong>🛡 FREE CPU ONLY</strong><span>Lightning: somente o primeiro Studio CPU grátis de 4 vCPU. Se o worker anunciar GPU/pago, o ViralClip recusa e continua localmente.</span></div>
+
+<div class="card compute-mode-card">
+  <div><small>ROTEAMENTO</small><h3>Modo de processamento</h3><p class="muted">Automático é recomendado. Híbrido favorece paralelismo entre PC e Lightning quando isso reduz o tempo total.</p></div>
+  <div class="compute-mode-row">
+    <select id="computeMode">
+      <option value="auto" {% if compute_mode=='auto' %}selected{% endif %}>Automático</option>
+      <option value="hybrid" {% if compute_mode=='hybrid' %}selected{% endif %}>Híbrido · usar local + cloud</option>
+      <option value="cloud" {% if compute_mode=='cloud' %}selected{% endif %}>Preferir Lightning CPU grátis</option>
+      <option value="local" {% if compute_mode=='local' %}selected{% endif %}>Somente local</option>
+      <option value="gpu-local" {% if compute_mode=='gpu-local' %}selected{% endif %}>Preferir GPU local</option>
+      <option value="cpu-local" {% if compute_mode=='cpu-local' %}selected{% endif %}>Somente CPU local</option>
+    </select>
+    <button class="btn primary" id="saveComputeMode">Salvar</button>
+    <span id="computeModeStatus" class="muted"></span>
+  </div>
+</div>
+
+<div class="compute-node-grid">
+{% for node in local_nodes %}
+  <article class="card compute-node online">
+    <div class="row between"><small>{{ node.kind|upper }}</small><span class="compute-dot online"></span></div>
+    <h3>{{ node.label }}</h3>
+    {% if node.kind == 'local_cpu' %}<p>{{ node.details.threads }} threads · {{ (node.details.ram_mb/1024)|round(1) }} GB RAM</p>{% else %}<p>{{ node.details.vendor|upper }} · {{ node.details.encoder or 'encoder CPU fallback' }}</p>{% endif %}
+    <span class="compute-safe">Local · sem custo cloud</span>
+  </article>
+{% endfor %}
+  <article class="card compute-node {% if cloud.ok %}online{% else %}offline{% endif %}" id="lightningNode">
+    <div class="row between"><small>LIGHTNING CLOUD CPU</small><span class="compute-dot {% if cloud.ok %}online{% else %}offline{% endif %}"></span></div>
+    <h3>Lightning · CPU grátis</h3>
+    {% if cloud.ok %}<p>{{ cloud.capabilities.cpu_count or 4 }} vCPU · {{ ((cloud.capabilities.ram_mb or 0)/1024)|round(1) }} GB RAM · fila {{ cloud.queue.queued or 0 }}</p><span class="compute-safe">✓ Worker aceito em FREE CPU ONLY</span>
+    {% elif cloud.status == 'not-configured' %}<p>Configure URL e token no <code>.env</code> para ativar.</p><span class="compute-safe">Desativado · pipeline local continua normal</span>
+    {% else %}<p>{{ cloud.status }}{% if cloud.error %} · {{ cloud.error }}{% endif %}</p><span class="compute-warning">Fallback local ativo</span>{% endif %}
+  </article>
+</div>
+
+<div class="compute-columns">
+<section class="card"><div class="row between"><div><small>HISTÓRICO REAL</small><h3>Velocidade aprendida</h3></div><span class="profile-pill">30 dias</span></div>
+  <div class="compute-table-wrap"><table class="compute-table"><thead><tr><th>Node</th><th>Tarefa</th><th>Amostras</th><th>Velocidade</th><th>Tempo médio</th></tr></thead><tbody>
+  {% for s in samples %}<tr><td>{{ s.node_kind }}</td><td>{{ s.task_type }}</td><td>{{ s.samples }}</td><td>{{ (s.avg_speed or 0)|round(2) }} un/s</td><td>{{ (s.avg_seconds or 0)|round(1) }}s</td></tr>{% else %}<tr><td colspan="5" class="muted">O ViralClip aprenderá com os primeiros processamentos reais.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="card"><div><small>SCHEDULER</small><h3>Últimas tarefas</h3></div><div class="compute-task-list">
+{% for t in tasks[:14] %}<div class="compute-task"><span class="badge {{ 'done' if t.state=='done' else 'processing' if t.state=='running' else 'error' if t.state=='failed' else 'queued' }}">{{ t.state }}</span><div><b>{{ t.task_type }}</b><small>{{ t.node_kind or 'aguardando rota' }} · {{ (t.progress*100)|round(0)|int }}%</small></div></div>{% else %}<p class="muted">Nenhuma tarefa V4.2 registrada ainda.</p>{% endfor %}
+</div></section>
+</div>
+
+<div class="card cloud-setup-card"><small>LIGHTNING · CONFIGURAÇÃO SEGURA</small><h3>Como conectar sem risco de custo</h3><p>Use o arquivo <code>LIGHTNING_FREE_CPU_SETUP.md</code> incluído no ZIP. O ViralClip não usa o SDK da Lightning para iniciar máquinas e não possui botão de T4/Turbo cloud. O token fica apenas no backend Python.</p><pre>LIGHTNING_ENABLED=1
+LIGHTNING_CLOUD_URL=https://...
+LIGHTNING_CLOUD_TOKEN=...
+COMPUTE_MODE=auto</pre></div>
+
+<script>
+(() => {
+ const save=document.getElementById('saveComputeMode'), select=document.getElementById('computeMode'), status=document.getElementById('computeModeStatus');
+ if(save) save.addEventListener('click',async()=>{save.disabled=true;status.textContent='Salvando...';try{const r=await fetch('/api/v1/compute-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:select.value})});if(!r.ok)throw new Error('Falha ao salvar');status.textContent='Modo salvo.';}catch(e){status.textContent=e.message||'Erro';}finally{save.disabled=false;}});
+ const refresh=document.getElementById('refreshCompute'); if(refresh)refresh.addEventListener('click',()=>location.reload());
+})();
+</script>
+{% endblock %}

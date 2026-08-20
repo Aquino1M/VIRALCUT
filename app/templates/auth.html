@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="authbox card">
+  <h1>{{ 'Criar conta' if mode == 'register' else 'Entrar' }}</h1>
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/{{ mode }}" class="stack">
+    <label>E-mail<input type="email" name="email" required></label>
+    <label>Senha<input type="password" name="password" required></label>
+    <button class="btn primary" type="submit">{{ 'Cadastrar' if mode == 'register' else 'Entrar' }}</button>
+  </form>
+</div>
+{% endblock %}

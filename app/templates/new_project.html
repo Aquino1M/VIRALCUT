@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Criar Projeto · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Novo Projeto{% endblock %}
+{% block content %}
+<section class="create-studio-page">
+  <div class="create-intro">
+    <span class="create-kicker">NOVO PROJETO · LOCAL AI</span>
+    <h1>Cole o link do vídeo</h1>
+    <p>Use YouTube, Twitch, Kick ou Google Drive, ou envie um arquivo do computador. O processamento pesado acontece localmente.</p>
+  </div>
+
+  {% if request.query_params.get('error') == 'source' %}<div class="alert error">Adicione um link ou selecione um arquivo para continuar.</div>{% endif %}
+
+  <form class="create-studio-form" action="/projects" method="post" enctype="multipart/form-data">
+    <section class="source-stage card">
+      <div class="source-link-shell">
+        <span class="source-link-icon">⌁</span>
+        <input type="url" name="source_url" value="{{ source_url_prefill or '' }}" placeholder="Cole um link do YouTube, Twitch, Kick ou Google Drive" autocomplete="off">
+      </div>
+      <div class="source-separator"><span>OU</span></div>
+      <label class="drop-zone" tabindex="0">
+        <input type="file" name="upload" accept=".mp4,.mov,.mkv,.avi" hidden>
+        <span class="drop-icon">⇧</span>
+        <span class="drop-copy"><b data-file-label>Clique ou arraste um arquivo</b><small>MP4, MOV, MKV ou AVI · até 10 GB · até 10 horas</small></span>
+      </label>
+      <p class="source-rights">Use somente vídeos que você criou ou tem permissão para usar.</p>
+    </section>
+
+    <details class="create-settings card" open>
+      <summary><span><b>Configurações do corte</b><small>Layout, IA, legenda, duração e Auto Edit</small></span><span class="summary-chevron">⌄</span></summary>
+      <div class="formgrid create-v2 create-settings-grid">
+        <label class="span2">Nome do projeto<input name="title" placeholder="Podcast #42 — melhores momentos"></label>
+        <label>Modo<select name="mode"><option value="smart">Smart Clip IA</option><option value="sequential">Reels sequenciais</option><option value="manual">Timestamps manuais</option></select></label>
+        <label>Quantidade de cortes<input type="number" name="num_clips" value="5" min="1" max="100"></label>
+        <label class="span2">O que a IA deve procurar?<textarea name="prompt" rows="3" placeholder="Ex.: momentos polêmicos, confissões, histórias fortes, revelações, frases que gerem comentários"></textarea></label>
+        <label>Perfil do criador<select name="profile_id"><option value="">Padrão</option>{% for p in profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+        <label>Idioma<input name="language" placeholder="pt (vazio = automático)"></label>
+        <label>Duração mínima<input type="number" name="min_duration" value="20"></label>
+        <label>Duração máxima<input type="number" name="max_duration" value="90"></label>
+        <label>Duração sequencial<input type="number" name="target_duration" value="60"></label>
+        <label>Cookies YouTube<select name="youtube_cookies"><option value="">Automático / PO Token</option><option value="brave">Brave</option><option value="chrome">Chrome</option><option value="edge">Edge</option><option value="firefox">Firefox</option></select></label>
+        <label>Início da faixa (s)<input type="number" step="0.1" name="start_range" value="0"></label>
+        <label>Fim da faixa (s)<input type="number" step="0.1" name="end_range" value="0"><small>0 = vídeo inteiro</small></label>
+        <label class="span2">Timestamps manuais<input name="manual_ranges" placeholder="10-45, 80-135, 200-250"></label>
+        <label>Proporção<select name="aspect_ratio"><option value="9:16">Vertical 9:16</option><option value="1:1">Quadrado 1:1</option><option value="4:5">Feed 4:5</option><option value="16:9">Horizontal 16:9</option></select></label>
+        <label>Crop compatibilidade<select name="crop_style"><option value="smart">Inteligente / rosto</option><option value="crop">Central</option><option value="blur">Fundo desfocado</option></select></label>
+
+        <div class="span2 layout-create-section">
+          <div class="field-title">Layout padrão <small>Face Tracking sempre ativo · aplicado já na criação dos cortes</small></div>
+          <div class="project-layout-picker">
+            {% for p in layout_presets %}
+            <label class="project-layout-option">
+              <input type="radio" name="layout_preset_id" value="{{p.id}}" {% if p.id=='auto' %}checked{% endif %}>
+              <span class="project-layout-card">
+                <span class="project-layout-mini">{% for panel in p.panels %}<i style="left:{{panel.x}}%;top:{{panel.y}}%;width:{{panel.w}}%;height:{{panel.h}}%"></i>{% endfor %}</span>
+                <b>{{p.name}}</b><small>{{p.description}}</small>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <label>Legenda padrão<select name="caption_preset_id">{% for p in caption_presets %}<option value="{{p.id}}" {% if p.id=='green-fresh' %}selected{% endif %}>{{p.name}}</option>{% endfor %}</select></label>
+        <label>Fonte padrão<select name="caption_font">{% for f in fonts %}<option value="{{f.family}}" {% if f.family=='Bangers' %}selected{% endif %}>{{f.family}}{% if not f.available %} (instalar){% endif %}</option>{% endfor %}</select></label>
+        <label class="check"><input type="checkbox" name="captions" checked> Gerar legendas</label>
+        <label class="check"><input type="checkbox" name="emojis" checked> Permitir emojis</label>
+        <label class="check"><input type="checkbox" name="use_llm" checked> Usar LLM se configurado</label>
+        <label class="check"><input type="checkbox" name="cta_enabled"> Preparar CTA / Brand Kit</label>
+
+        <div class="span2 auto-edit-create" id="auto-edit">
+          <div class="field-title">✦ Auto Edit <small>Director AI monta o corte usando a Biblioteca Leve (~2 GB)</small></div>
+          <label class="check auto-edit-master"><input type="checkbox" name="auto_edit_enabled" checked> Ler a transcrição e aplicar automaticamente B-roll, SFX, música, filtros, zooms e movimentos</label>
+          <div class="control-row">
+            <label>Estilo<select name="auto_edit_style"><option value="podcast-viral">Podcast Viral</option><option value="noticias">Notícias</option><option value="politica">Política</option><option value="financas">Finanças</option><option value="fofoca">Fofoca</option><option value="documentario">Documentário</option><option value="gaming">Gaming</option><option value="storytelling">Storytelling</option><option value="mrbeast-like">Viral acelerado</option></select></label>
+            <label>Intensidade<select name="auto_edit_intensity"><option value="clean">Clean</option><option value="normal" selected>Normal</option><option value="viral">Viral</option><option value="hyper">Hyper</option></select></label>
+          </div>
+          <p class="note">A IA só usa um asset quando há correspondência suficiente; caso contrário mantém o vídeo original. Tudo continua editável na Timeline Pro.</p>
+        </div>
+
+        <label class="span2">Palavras-chave extras<input name="custom_keywords" placeholder="polêmica, exposed, dinheiro, bastidores"></label>
+        <div class="span2 local-processing-note"><span>⚡</span><div><b>Processamento no PC do usuário</b><small>O VIRALCLIP.bat detecta NVIDIA, AMD, Intel ou CPU e escolhe automaticamente o melhor backend/encoder disponível.</small></div></div>
+      </div>
+    </details>
+
+    <div class="create-submit-bar"><div><b>Pronto para processar</b><small>Você pode alterar layout, legenda e Auto Edit depois no Editor Pro.</small></div><button class="btn primary create-submit" type="submit">✦ Criar e processar</button></div>
+  </form>
+</section>
+{% endblock %}

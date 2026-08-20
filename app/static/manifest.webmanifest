@@ -1,0 +1,10 @@
+{
+  "name": "ViralClip Studio",
+  "short_name": "ViralClip",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#09090d",
+  "theme_color": "#8441ff",
+  "description": "Smart Studio local-first para cortes, edição e renderização de vídeos."
+}

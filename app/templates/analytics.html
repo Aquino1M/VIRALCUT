@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Viralytics · ViralClip Studio{% endblock %}
+{% block breadcrumb %}Viralytics{% endblock %}
+{% block content %}
+<div class="section-head"><div><span class="create-kicker">CREATOR INTELLIGENCE</span><h1>Viralytics</h1><p class="muted">ViralScore é estimativa editorial. Aprendizado do criador usa somente métricas reais que você registrar ou que conectores oficiais fornecerem.</p></div></div>
+<div class="stats v41-stats"><div class="stat"><span>Projetos</span><b>{{stats.projects}}</b></div><div class="stat"><span>Cortes</span><b>{{stats.clips}}</b></div><div class="stat"><span>Renderizados</span><b>{{stats.rendered}}</b></div><div class="stat"><span>ViralScore médio</span><b>{{stats.avg_score}}</b></div><div class="stat"><span>Render médio</span><b>{{stats.avg_render_seconds}}s</b></div></div>
+<section class="creator-intelligence card">
+  <div class="row between"><div><span class="create-kicker">LEARNING ENGINE</span><h2>Perfil do criador</h2></div><span class="badge done">{{(creator_profile.confidence*100)|round|int}}% confiança</span></div>
+  <div class="creator-profile-grid"><div><small>Amostras reais</small><b>{{creator_profile.samples}}</b></div><div><small>Melhor duração observada</small><b>{% if creator_profile.best_duration %}{{creator_profile.best_duration}}s{% else %}—{% endif %}</b></div><div><small>Maior alcance informado</small><b>{{creator_profile.top_views or 0}}</b></div><div><small>Engajamento top</small><b>{{((creator_profile.signals.avg_top_engagement or 0)*100)|round(2)}}%</b></div></div>
+  {% if creator_profile.platforms %}<div class="platform-intel">{% for platform,data in creator_profile.platforms.items() %}<div class="metric-line"><span>{{platform}}</span><b>{{data.samples}} amostras · {{(data.avg_engagement*100)|round(2)}}%</b></div>{% endfor %}</div>{% else %}<p class="note">Registre resultados reais abaixo. Até existir histórico, o ViralScore continua usando apenas sinais editoriais locais.</p>{% endif %}
+</section>
+<section class="analytics-grid">
+  <div class="card"><h2>Top ViralScore</h2><div class="analytics-list">{% for c in top_clips %}<a href="/clips/{{c.id}}/edit"><b>{{c.viral_score}}</b><span><strong>{{c.title}}</strong><small>{{c.project_title}}</small></span></a>{% else %}<p class="muted">Sem cortes ainda.</p>{% endfor %}</div></div>
+  <div class="card"><h2>Encoders</h2>{% for e in encoders %}<div class="metric-line"><span>{{e.encoder}}</span><b>{{e.n}}</b></div>{% else %}<p class="muted">Nenhum render.</p>{% endfor %}<h2>Publicação</h2>{% for status,n in publish_counts.items() %}<div class="metric-line"><span>{{status}}</span><b>{{n}}</b></div>{% else %}<p class="muted">Fila vazia.</p>{% endfor %}</div>
+</section>
+<section class="card metric-entry-card">
+  <div><span class="create-kicker">DADOS OBSERVADOS</span><h2>Registrar desempenho real</h2><p class="muted">Use para calibrar o Creator Intelligence. Zero dados simulados.</p></div>
+  <form id="realMetricsForm" class="metric-entry-grid">
+    <label>Clip ID (opcional)<input name="clip_id" placeholder="ID do corte"></label><label>Plataforma<select name="platform"><option value="youtube-shorts">YouTube Shorts</option><option value="tiktok">TikTok</option><option value="instagram-reels">Instagram Reels</option><option value="manual">Outro/manual</option></select></label>
+    <label>Views<input name="views" type="number" min="0" value="0"></label><label>Likes<input name="likes" type="number" min="0" value="0"></label><label>Comentários<input name="comments" type="number" min="0" value="0"></label><label>Compartilhamentos<input name="shares" type="number" min="0" value="0"></label>
+    <label>Completion (0–1)<input name="completion_rate" type="number" min="0" max="1" step="0.01"></label><label>Hook hold (0–1)<input name="hook_hold_rate" type="number" min="0" max="1" step="0.01"></label>
+    <button class="btn primary" type="submit">Salvar métrica real</button><span id="realMetricsStatus" class="muted"></span>
+  </form>
+</section>
+<script>
+document.getElementById('realMetricsForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload={};for(const [k,v] of f.entries())payload[k]=v;['views','likes','comments','shares'].forEach(k=>payload[k]=Number(payload[k]||0));['completion_rate','hook_hold_rate'].forEach(k=>{if(payload[k]==='')delete payload[k];else payload[k]=Number(payload[k])});if(!payload.clip_id)delete payload.clip_id;const out=document.getElementById('realMetricsStatus');out.textContent='Salvando…';const r=await fetch('/api/v1/creator-performance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();out.textContent=r.ok?'✓ Métrica real salva. Recarregando perfil…':(d.error||'Erro');if(r.ok)setTimeout(()=>location.reload(),600);});
+</script>
+{% endblock %}

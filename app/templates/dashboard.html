@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">SMART STUDIO</div><h1>Seus projetos</h1><p class="muted">Encontre, filtre e acompanhe seus projetos e cortes.</p></div><a class="btn primary" href="/projects/new">+ Novo projeto</a></div>
+<div class="stats">
+  <div class="stat"><span>Projetos</span><b>{{ stats.projects }}</b></div>
+  <div class="stat"><span>Concluídos</span><b>{{ stats.done }}</b></div>
+  <div class="stat"><span>Cortes gerados</span><b>{{ stats.clips }}</b></div>
+</div>
+<form class="card dashboard-filterbar" method="get">
+  <label class="dashboard-search">Buscar<input name="q" value="{{q}}" placeholder="Título ou origem do projeto"></label>
+  <label>Status<select name="status"><option value="all" {% if status=='all' %}selected{% endif %}>Todos</option><option value="queued" {% if status=='queued' %}selected{% endif %}>Na fila</option><option value="processing" {% if status=='processing' %}selected{% endif %}>Processando</option><option value="done" {% if status=='done' %}selected{% endif %}>Concluídos</option><option value="error" {% if status=='error' %}selected{% endif %}>Com erro</option></select></label>
+  <label>Ordenar<select name="sort"><option value="recent" {% if sort=='recent' %}selected{% endif %}>Mais recentes</option><option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Mais antigos</option><option value="title" {% if sort=='title' %}selected{% endif %}>Título A-Z</option><option value="duration" {% if sort=='duration' %}selected{% endif %}>Maior duração</option><option value="progress" {% if sort=='progress' %}selected{% endif %}>Maior progresso</option></select></label>
+  <label>Por página<select name="page_size"><option value="6" {% if page_size==6 %}selected{% endif %}>6</option><option value="12" {% if page_size==12 %}selected{% endif %}>12</option><option value="24" {% if page_size==24 %}selected{% endif %}>24</option><option value="48" {% if page_size==48 %}selected{% endif %}>48</option></select></label>
+  <input type="hidden" name="page" value="1"><button class="btn" type="submit">Aplicar</button>{% if q or status!='all' or sort!='recent' %}<a class="btn small" href="/dashboard">Limpar</a>{% endif %}
+</form>
+<div class="row between dashboard-result-head"><span class="muted">{{ total }} projeto(s) encontrado(s)</span></div>
+<div class="projectgrid">
+{% for p in projects %}
+  <article class="project card project-v42">
+    <div class="row between"><span class="badge {{ p.status }}">{{ p.status }}</span><span class="muted">{{ p.progress }}%</span></div>
+    <h3>{{ p.title }}</h3><p class="muted">{{ p.mode }} • {{ p.source_type }}{% if p.duration %} • {{ (p.duration//60)|int }}m {{ (p.duration%60)|int }}s{% endif %}</p>
+    <div class="project-mini-metrics"><span><b>{{p.clip_count}}</b><small>cortes</small></span></div>
+    <div class="progress"><i style="width: {{ p.progress }}%"></i></div>
+    <p>{{ p.message }}</p>
+    <div class="row"><a class="btn small primary" href="/projects/{{ p.id }}">Abrir</a><form method="post" action="/projects/{{ p.id }}/delete" onsubmit="return confirm('Excluir este projeto?')"><button class="btn small danger">Excluir</button></form></div>
+  </article>
+{% else %}
+  <div class="empty card"><h3>Nenhum projeto encontrado</h3><p>{% if q or status!='all' %}Tente alterar os filtros.{% else %}Crie seu primeiro projeto e gere cortes automaticamente.{% endif %}</p>{% if not q and status=='all' %}<a class="btn primary" href="/projects/new">Criar projeto</a>{% endif %}</div>
+{% endfor %}
+</div>
+{% if pages>1 %}<nav class="pagination card"><span>Página {{page}} de {{pages}}</span><div class="row">{% if page>1 %}<a class="btn small" href="?q={{q|urlencode}}&status={{status}}&sort={{sort}}&page_size={{page_size}}&page={{page-1}}">← Anterior</a>{% endif %}{% if page<pages %}<a class="btn small" href="?q={{q|urlencode}}&status={{status}}&sort={{sort}}&page_size={{page_size}}&page={{page+1}}">Próxima →</a>{% endif %}</div></nav>{% endif %}
+{% endblock %}

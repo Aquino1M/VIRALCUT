@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">NOVO CLIPE</div><h1>Corte manual</h1><p class="muted">Escolha a fonte e o intervalo exato.</p></div></div>
+<div class="twocol">
+  <div class="card stack">
+    {% set active_id = selected_asset.id if selected_asset else '' %}
+    {% set active_label = selected_asset.source_value if selected_asset else 'Fonte principal do projeto' %}
+    <div class="row between"><b>{{ active_label }}</b>{% if assets %}<span class="muted">{{ assets|length }} importado(s)</span>{% endif %}</div>
+    {% if selected_asset or project.source_path %}<video class="video" controls src="/projects/{{project.id}}/source-video{% if active_id %}?asset_id={{active_id}}{% endif %}"></video>{% else %}<div class="empty"><p>A fonte ainda não está disponível localmente.</p></div>{% endif %}
+    {% if assets %}<div class="source-pills"><a class="btn small {% if not active_id %}primary{% endif %}" href="/projects/{{project.id}}/new-clip">Principal</a>{% for a in assets %}<a class="btn small {% if active_id==a.id %}primary{% endif %}" href="/projects/{{project.id}}/new-clip?asset_id={{a.id}}">{{a.source_value or a.id}}</a>{% endfor %}</div>{% endif %}
+  </div>
+  <form class="card stack" method="post">
+    <input type="hidden" name="asset_id" value="{{active_id}}">
+    <label>Título<input name="title" value="Novo clipe"></label>
+    <label>Início (segundos)<input name="start_time" type="number" step="0.1" min="0" required></label>
+    <label>Fim (segundos)<input name="end_time" type="number" step="0.1" min="0" required></label>
+    <button class="btn primary">Criar clipe</button><a class="btn" href="/projects/{{project.id}}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

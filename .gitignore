@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/**
+!data/**/
+!data/**/.gitkeep
+data/*.db
+data/**/*.db
+outputs/
+temp/
+previews/
+*.log
+data/hardware_profile.json
+data/worker_pairing.json
+data/assets/catalog.json
+data/tracks/*.json
+# V3.4 local performance runtime
+data/cache/
+data/runtime/
+data/asr_benchmark.json
