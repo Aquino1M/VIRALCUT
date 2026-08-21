@@ -459,7 +459,7 @@ def admin_processing_mode(request: Request, user_id: int, mode: str = Form("auto
     admin, redirect = require_admin(request)
     if redirect:
         return redirect
-    if mode not in {"auto", "hybrid", "local", "cloud"}:
+    if mode not in {"auto", "hybrid", "local", "cloud", "gpu-local"}:
         return HTMLResponse("Modo de processamento inválido", status_code=400)
     if not fetchone("SELECT id FROM users WHERE id=?", (user_id,)):
         return HTMLResponse("Usuário não encontrado", status_code=404)

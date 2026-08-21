@@ -15,11 +15,13 @@
     <form action="/admin/users/{{ item.id }}/processing-mode" method="post">
       <label for="mode-{{ item.id }}">Processamento</label>
       <select id="mode-{{ item.id }}" name="mode" onchange="this.form.submit()">
-        <option value="auto" {% if item.compute_mode not in ['hybrid','local','cloud'] %}selected{% endif %}>Automático (recomendado)</option>
+        <option value="auto" {% if item.compute_mode not in ['hybrid','local','cloud','gpu-local'] %}selected{% endif %}>Automático (recomendado)</option>
         <option value="hybrid" {% if item.compute_mode=='hybrid' %}selected{% endif %}>Híbrido (computador + CPU Cloud)</option>
         <option value="local" {% if item.compute_mode=='local' %}selected{% endif %}>Neste computador</option>
+        <option value="gpu-local" {% if item.compute_mode=='gpu-local' %}selected{% endif %}>GPU do Worker local</option>
         <option value="cloud" {% if item.compute_mode=='cloud' %}selected{% endif %}>CPU Cloud</option>
       </select>
+      <button class="btn small" type="submit" name="mode" value="gpu-local">Usar GPU local</button>
     </form>
     <div class="admin-user-actions">
       <form action="/admin/users/{{ item.id }}/password" method="post">

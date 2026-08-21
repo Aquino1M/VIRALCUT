@@ -33,7 +33,9 @@ def test_project_pipeline_profiles_and_transcribes_before_window_tracking(monkey
     monkeypatch.setattr(jobs, 'OUTPUT_DIR', tmp_path/'out')
     monkeypatch.setattr(jobs, 'TEMP_DIR', tmp_path/'temp')
     monkeypatch.setattr(jobs, 'THUMB_DIR', tmp_path/'thumb')
+    renders=[]
     def fake_render(*, out_path, **kwargs):
+        renders.append(Path(out_path))
         Path(out_path).parent.mkdir(parents=True,exist_ok=True); Path(out_path).write_bytes(b'x'); return {'encoder':'libx264'}
     monkeypatch.setattr(jobs, 'render_clean_clip', fake_render)
     monkeypatch.setattr(jobs, 'render_edited_clip', fake_render)
@@ -46,3 +48,9 @@ def test_project_pipeline_profiles_and_transcribes_before_window_tracking(monkey
     assert p['status']=='done'
     assert events.index('hardware') < events.index('disk-preflight') < events.index('transcribe') < events.index('highlights') < events.index('tracking-window')
     assert 'analyze_video' not in events
+    assert len(renders) == 2
+
+    db.execute("UPDATE projects SET status='queued' WHERE id='p1'")
+    jobs.process_project('p1')
+    assert len(renders) == 2
+    assert db.fetchone("SELECT COUNT(*) count FROM clips WHERE project_id='p1'")['count'] == 1

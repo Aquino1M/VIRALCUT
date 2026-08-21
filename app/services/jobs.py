@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -60,20 +59,35 @@ def recover_interrupted_projects() -> list[str]:
     """Recover project jobs after an unclean shutdown.
 
     A project queue belongs to the server, not to the browser. Interrupted
-    projects are returned to the queue after discarding only partial outputs;
-    uploads remain intact and remote sources are downloaded again.
+    projects are returned to the queue with their completed stages, cached
+    transcription, tracking data and rendered clips intact.
     """
     rows = fetchall("SELECT id,status,progress FROM projects WHERE status IN ('queued','processing') ORDER BY created_at")
     queued: list[str] = []
     for row in rows:
         project_id = str(row["id"])
-        if row["status"] == "processing":
-            execute("DELETE FROM clips WHERE project_id=?", (project_id,))
-            shutil.rmtree(OUTPUT_DIR / project_id, ignore_errors=True)
-            shutil.rmtree(TEMP_DIR / project_id, ignore_errors=True)
-        _update(project_id, status="queued", progress=0, message="Retomando automaticamente após reinício.")
+        _update(project_id, status="queued", progress=int(row["progress"] or 0), message="Retomando automaticamente do último passo salvo.")
         queued.append(project_id)
     return queued
+
+
+def _resume_path(work_dir: Path) -> Path:
+    return work_dir / "resume.json"
+
+
+def _load_resume(work_dir: Path) -> dict:
+    try:
+        data = json.loads(_resume_path(work_dir).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _save_resume(work_dir: Path, state: dict) -> None:
+    target = _resume_path(work_dir)
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(target)
 
 
 def _manual_candidates(raw: str) -> list[dict]:
@@ -324,12 +338,19 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
 
         work_dir = TEMP_DIR / project_id
         work_dir.mkdir(parents=True, exist_ok=True)
+        resume = _load_resume(work_dir)
         job_store.start_stage(job_id, "ingest", total=1.0, message="Preparando a fonte")
-        if project_service.is_remote_source_type(row["source_type"]):
+        saved_source = Path(str(resume.get("source_path") or row["source_path"] or ""))
+        if saved_source.is_file():
+            source = saved_source
+            job_store.update_stage(job_id, current=1.0, total=1.0, message="Fonte reutilizada do processamento anterior")
+        elif project_service.is_remote_source_type(row["source_type"]):
             _update(project_id, progress=7, message=f"Baixando vídeo de {row['source_type'].upper()}")
             source = ingest_url(row["source_value"], work_dir, cookie_browser=settings.get("youtube_cookies", ""))
         else:
             source = ingest_upload(row["source_path"], work_dir)
+        resume["source_path"] = str(source)
+        _save_resume(work_dir, resume)
         job_store.update_stage(job_id, current=1.0, total=1.0, message="Fonte pronta")
         job_store.finish_stage(job_id)
 
@@ -396,7 +417,12 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
         job_store.start_stage(job_id, "highlights", total=1.0, message="Selecionando cortes")
         highlight_settings = dict(settings)
         highlight_settings["mode"] = row["mode"]
-        if str(row["mode"] or "smart") == "manual":
+        saved_candidates = resume.get("candidates")
+        if isinstance(saved_candidates, list) and saved_candidates:
+            candidates = saved_candidates
+            route = {"task_type": "highlights", "selected": "checkpoint", "mode": "resume"}
+            job_store.update_stage(job_id, current=1, total=1, message=f"{len(candidates)} cortes reutilizados do checkpoint")
+        elif str(row["mode"] or "smart") == "manual":
             candidates = _pick_highlights_for_two_pass(transcript, highlight_settings, source_duration)
             route = {"task_type": "highlights", "selected": "local_cpu", "mode": "manual"}
         else:
@@ -405,6 +431,8 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
         compute_summary.append(route)
         if not candidates:
             raise RuntimeError("Nenhum momento válido foi encontrado. Tente reduzir a duração mínima, ampliar a faixa do vídeo ou usar o modo sequencial/manual.")
+        resume["candidates"] = candidates
+        _save_resume(work_dir, resume)
         job_store.update_stage(job_id, current=1, total=1, message=f"{len(candidates)} cortes selecionados")
         job_store.finish_stage(job_id)
 
@@ -443,6 +471,9 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
             candidate["transcript"] = _window_transcript(transcript, float(candidate["start"]), float(candidate["end"]))
         transcript_path = work_dir / "transcript.json"
         save_transcript(transcript, transcript_path)
+        resume["candidates"] = candidates
+        resume["transcript_path"] = str(transcript_path)
+        _save_resume(work_dir, resume)
         asr_cache.cleanup_lru()
         _update(project_id, progress=55, message="Transcrição V3.4 pronta · iniciando Face Tracking", transcript_path=str(transcript_path))
 
@@ -452,12 +483,16 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
         tracking_fps = float(analysis_cfg.get("tracking_fps") or settings.get("tracking_fps") or 1.0)
         analysis_width = int(analysis_cfg.get("width") or 640)
         margin = 0.6
-        tracking_windows: list[dict] = []
+        saved_tracking = resume.get("tracking_windows")
+        tracking_windows: list[dict] = saved_tracking if isinstance(saved_tracking, list) and len(saved_tracking) == len(candidates) else []
         total_tracking_seconds = sum(max(0.1, float(c["end"]) - float(c["start"]) + margin * 2) for c in candidates)
         tracking_done = 0.0
         job_store.start_stage(job_id, "tracking", total=total_tracking_seconds, backend="auto", message="Face Tracking somente nos cortes")
         _update(project_id, progress=55, message=f"Face Tracking 0/{len(candidates)} · somente trechos úteis")
-        for idx, candidate in enumerate(candidates, 1):
+        if tracking_windows:
+            tracking_done = total_tracking_seconds
+            job_store.update_stage(job_id, current=tracking_done, total=total_tracking_seconds, message="Face Tracking reutilizado do checkpoint")
+        for idx, candidate in enumerate(candidates[len(tracking_windows):], len(tracking_windows) + 1):
             cstart = float(candidate["start"]); cend = float(candidate["end"])
             wstart = max(0.0, cstart - margin); wend = min(source_duration or cend + margin, cend + margin)
             window_duration = max(0.1, wend - wstart)
@@ -502,11 +537,15 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
                 window_data.update({"source_start": wstart, "source_end": wend, "sampling": "safe-crop"})
             tracking_windows.append(window_data)
             tracking_done += window_duration
+            resume["tracking_windows"] = tracking_windows
+            _save_resume(work_dir, resume)
         job_store.update_stage(job_id, current=total_tracking_seconds, total=total_tracking_seconds, message="Face Tracking concluído")
         job_store.finish_stage(job_id)
         tracking_data = face_tracking.merge_window_tracks(tracking_windows)
         tracking_path = work_dir / "face_tracks.json"
         tracking_path.write_text(json.dumps(tracking_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        resume["tracking_windows"] = tracking_windows
+        _save_resume(work_dir, resume)
         tracking_summary = face_tracking.tracking_summary(tracking_data)
         _update(project_id, progress=70, message=f"Renderizando {len(candidates)} cortes", tracking_path=str(tracking_path), tracking_summary_json=json.dumps(tracking_summary, ensure_ascii=False))
 
@@ -516,9 +555,18 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
         job_store.start_stage(job_id, "render", total=float(len(candidates)), backend=encoder_label, message="Renderizando cortes")
         for idx, (candidate, window_data) in enumerate(zip(candidates, tracking_windows), 1):
             control.checkpoint()
-            clip_id = uuid.uuid4().hex
             video_out = out_dir / f"clip_{idx:02d}.mp4"
             clean_out = out_dir / f"clip_{idx:02d}.clean.mp4"
+            existing = fetchone(
+                "SELECT id,video_path,clean_path FROM clips WHERE project_id=? AND start_time=? AND end_time=? LIMIT 1",
+                (project_id, float(candidate["start"]), float(candidate["end"])),
+            )
+            if existing and Path(existing["video_path"] or "").is_file() and Path(existing["clean_path"] or "").is_file():
+                job_store.update_stage(job_id, current=float(idx), total=float(len(candidates)), backend=encoder_label, message=f"Corte {idx}/{len(candidates)} reutilizado")
+                pct = 70 + int(28 * idx / len(candidates))
+                _update(project_id, progress=min(98, pct), message=f"Corte {idx}/{len(candidates)} reutilizado")
+                continue
+            clip_id = uuid.uuid4().hex
             clip_tracking = face_tracking.slice_tracks(window_data, float(candidate["start"]), float(candidate["end"]))
             clip_state = _state_for_candidate(default_state, candidate)
             render_clean_clip(
