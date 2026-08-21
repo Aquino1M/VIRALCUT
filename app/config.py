@@ -76,6 +76,12 @@ COMPUTE_MODE = os.getenv("COMPUTE_MODE", "auto").strip().lower() or "auto"
 CLOUD_MEDIA_RETENTION_HOURS = max(1, int(os.getenv("CLOUD_MEDIA_RETENTION_HOURS", "24")))
 CLOUD_RESULT_RETENTION_DAYS = max(1, int(os.getenv("CLOUD_RESULT_RETENTION_DAYS", "7")))
 
+# Optional Backblaze B2 archive for completed videos. Keys stay server-side.
+B2_KEY_ID = os.getenv("B2_KEY_ID", "").strip()
+B2_APPLICATION_KEY = os.getenv("B2_APPLICATION_KEY", "").strip()
+B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME", "").strip()
+B2_S3_ENDPOINT = os.getenv("B2_S3_ENDPOINT", "").strip().rstrip("/")
+
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"
 OUTPUT_DIR = DATA_DIR / "outputs"

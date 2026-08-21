@@ -23,6 +23,7 @@ from . import projects as project_service
 from . import viral_score
 from . import studio_templates
 from . import brand_kits
+from . import b2_storage
 from . import compute_fabric
 from .analyzer import find_highlights, sequential_highlights
 from .captions import cues_from_transcript
@@ -88,6 +89,20 @@ def _save_resume(work_dir: Path, state: dict) -> None:
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
     temporary.replace(target)
+
+
+def _archive_to_b2(project_id: str, *, kind: str, path: Path) -> None:
+    """Best-effort archive: a storage outage must not fail a finished clip."""
+    try:
+        record = b2_storage.upload_file(path, key=f"projects/{project_id}/{kind}/{path.name}")
+        if not record.get("archived"):
+            return
+        execute(
+            "INSERT INTO project_assets(id,project_id,kind,provider,source_value,local_path,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, project_id, f"b2-{kind}", "backblaze-b2", record.get("file_name"), str(path), json.dumps(record), now_iso()),
+        )
+    except Exception:
+        return
 
 
 def _manual_candidates(raw: str) -> list[dict]:
@@ -611,10 +626,12 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
                     except Exception:
                         pass
                     execute("UPDATE clips SET thumbnail_path=?,render_encoder=?,file_size=?,updated_at=? WHERE id=?", (thumb_path, result.get("encoder"), size, now_iso(), clip_id))
+            _archive_to_b2(project_id, kind="clips", path=video_out)
             job_store.update_stage(job_id, current=float(idx), total=float(len(candidates)), backend=str(result.get("encoder") or encoder_label), message=f"Corte {idx}/{len(candidates)} pronto")
             pct = 70 + int(28 * idx / len(candidates))
             _update(project_id, progress=min(98, pct), message=f"Corte {idx}/{len(candidates)} pronto")
 
+        _archive_to_b2(project_id, kind="source", path=source)
         job_store.complete_job(job_id, "Projeto concluído")
         _update(project_id, "done", 100, "Projeto concluído", compute_summary_json=json.dumps({"mode": compute_mode, "routes": compute_summary}, ensure_ascii=False))
     except worker_control.JobCancelled as exc:
