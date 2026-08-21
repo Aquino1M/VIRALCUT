@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -58,22 +59,20 @@ def submit(project_id: str) -> str:
 def recover_interrupted_projects() -> list[str]:
     """Recover project jobs after an unclean shutdown.
 
-    Jobs that never started can safely be resubmitted. Jobs that were already
-    processing are moved to an explicit retryable error state so the user does
-    not get stuck forever on a stale progress value.
+    A project queue belongs to the server, not to the browser. Interrupted
+    projects are returned to the queue after discarding only partial outputs;
+    uploads remain intact and remote sources are downloaded again.
     """
     rows = fetchall("SELECT id,status,progress FROM projects WHERE status IN ('queued','processing') ORDER BY created_at")
     queued: list[str] = []
     for row in rows:
-        if row["status"] == "queued":
-            queued.append(row["id"])
-            continue
-        _update(
-            row["id"],
-            status="error",
-            progress=max(0, min(99, int(row["progress"] or 0))),
-            message="Processamento interrompido ao fechar o ViralClip. Use Reprocessar projeto para continuar.",
-        )
+        project_id = str(row["id"])
+        if row["status"] == "processing":
+            execute("DELETE FROM clips WHERE project_id=?", (project_id,))
+            shutil.rmtree(OUTPUT_DIR / project_id, ignore_errors=True)
+            shutil.rmtree(TEMP_DIR / project_id, ignore_errors=True)
+        _update(project_id, status="queued", progress=0, message="Retomando automaticamente após reinício.")
+        queued.append(project_id)
     return queued
 
 
