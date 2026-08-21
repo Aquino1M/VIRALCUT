@@ -31,5 +31,8 @@ def test_project_workspace_contains_player_filters_bulk_and_download(monkeypatch
     assert 'id="bulkPreviewList"' in html
     assert 'renderBulkPreviews' in html
     assert 'bulkCtaEnabled' in html
+    assert 'bulkBrandKit' in html
+    assert 'createBulkBrandKit' in html
+    assert 'bindBulkCaptionDrag' in html
     assert 'Formato real' in html
     assert '/projects/p1/download-all' in html
