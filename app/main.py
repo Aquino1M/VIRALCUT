@@ -818,7 +818,6 @@ async def create_project(
     language: str = Form(""),
     custom_keywords: str = Form(""),
     profile_id: str = Form(""),
-    youtube_cookies: str = Form(""),
     start_range: float = Form(0),
     end_range: float = Form(0),
     brand_kit_id: str = Form(""),
@@ -886,7 +885,6 @@ async def create_project(
         "auto_edit_intensity": auto_edit_intensity,
         "language": language,
         "custom_keywords": custom_keywords,
-        "youtube_cookies": "",
         "start_range": start_range,
         "end_range": end_range,
     })

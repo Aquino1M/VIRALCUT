@@ -70,7 +70,7 @@ def test_youtube_403_retries_with_po_token_provider(monkeypatch, tmp_path):
     assert captured[1]["extractor_args"]["youtubepot-wpc"]["browser_path"] == ["C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"]
 
 
-def test_explicit_brave_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_path):
+def test_automatic_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_path):
     captured = []
     install_fake_ytdlp(
         monkeypatch,
@@ -83,9 +83,9 @@ def test_explicit_brave_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_
     )
     monkeypatch.setattr(ingest.shutil, "which", lambda name: f"C:/fake/{name}.exe" if name == "deno" else None)
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
-    monkeypatch.setattr(ingest, "_browser_cookie_profile_available", lambda browser: True)
+    monkeypatch.setattr(ingest, "_automatic_cookie_browsers", lambda: ["brave"])
 
-    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
+    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert result.exists()
     assert "cookiesfrombrowser" not in captured[0]
@@ -121,7 +121,7 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     monkeypatch.setenv("YTDLP_COOKIES_FILE", str(session))
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
 
-    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
+    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert result.exists()
     assert captured[2]["cookiefile"] == str(session)
@@ -139,13 +139,13 @@ def test_private_po_token_provider_is_passed_to_youtube(monkeypatch, tmp_path):
     assert captured[1]["extractor_args"]["youtubepot-bgutilhttp"]["base_url"] == ["http://youtube-pot.railway.internal:4416"]
 
 
-def test_missing_browser_profile_does_not_trigger_cookie_download(monkeypatch, tmp_path):
+def test_automatic_mode_reports_generic_error_when_no_session_is_available(monkeypatch, tmp_path):
     captured = []
     install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden")], captured)
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
-    monkeypatch.setattr(ingest, "_browser_cookie_profile_available", lambda browser: False)
+    monkeypatch.setattr(ingest, "_automatic_cookie_browsers", lambda: [])
 
-    with pytest.raises(RuntimeError, match="não está neste computador"):
-        ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
+    with pytest.raises(RuntimeError, match="modo automático"):
+        ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert len(captured) == 2

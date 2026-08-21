@@ -117,7 +117,6 @@ def normalize_project_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "cta_enabled": _bool("cta_enabled", False),
         "overlays": raw.get("overlays") or [],
         "custom_keywords": str(raw.get("custom_keywords") or raw.get("prompt") or "").strip(),
-        "youtube_cookies": str(raw.get("youtube_cookies") or ""),
         "crop_style": str(raw.get("crop_style") or "smart"),
         "auto_edit_enabled": _bool("auto_edit_enabled", False),
         "auto_edit_style": auto_style,

@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-_ALLOWED_COOKIE_BROWSERS = {"brave", "chrome", "edge", "firefox", "chromium", "vivaldi", "opera"}
 
 
 def _is_youtube_url(url: str) -> bool:
@@ -162,7 +161,7 @@ def _clean_download_error(exc: Exception) -> str:
     return _ANSI_RE.sub("", str(exc)).strip()
 
 
-def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
+def ingest_url(url: str, dest_dir: Path) -> Path:
     """Download a public URL with YouTube 2026 compatibility fallbacks.
 
     Strategy for YouTube:
@@ -175,10 +174,6 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
     from yt_dlp.utils import DownloadError
 
     dest_dir.mkdir(parents=True, exist_ok=True)
-    cookie_browser = (cookie_browser or "").strip().lower()
-    if cookie_browser not in _ALLOWED_COOKIE_BROWSERS:
-        cookie_browser = ""
-
     try:
         return _download_once(url, dest_dir)
     except DownloadError as first_exc:
@@ -209,8 +204,7 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
         except DownloadError as cookie_exc:
             second_msg = _clean_download_error(cookie_exc)
 
-    cookie_browsers = ([cookie_browser] if _browser_cookie_profile_available(cookie_browser) else []) if cookie_browser else _automatic_cookie_browsers()
-    for browser in cookie_browsers:
+    for browser in _automatic_cookie_browsers():
         _cleanup_partial(dest_dir)
         try:
             return _download_once(
@@ -224,13 +218,6 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
         except DownloadError as cookie_exc:
             final_msg = _clean_download_error(cookie_exc)
             continue
-
-    if cookie_browser and not _browser_cookie_profile_available(cookie_browser):
-        raise RuntimeError(
-            f"A sessão do {cookie_browser.title()} não está neste computador de processamento. "
-            "A seleção de navegador só funciona quando o app e o navegador estão na mesma máquina. "
-            "No CPU Cloud, envie o arquivo de vídeo ou processe pelo aplicativo local."
-        )
 
     raise RuntimeError(
         "O modo automático do YouTube tentou os métodos disponíveis neste processamento, mas a importação não foi liberada agora. "

@@ -82,10 +82,10 @@ def test_youtube_browser_choice_is_available_for_new_and_failed_projects(monkeyp
     db.execute("UPDATE projects SET status='error', message='HTTP 403' WHERE id='p1'")
     project_page = client.get('/projects/p1')
     assert project_page.status_code == 200
-    assert 'id="defaultYoutubeCookies"' in project_page.text
+    assert 'value="Automático" readonly' in project_page.text
     saved = client.post('/projects/p1/defaults', json={'youtube_cookies': 'brave'})
     assert saved.status_code == 200
-    assert json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])['youtube_cookies'] == ''
+    assert 'youtube_cookies' not in json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])
 
 
 def test_admin_monitor_reports_cloud_cpu_status(monkeypatch, tmp_path):
