@@ -351,7 +351,8 @@ def build_layout_filter(
             f"color=c=black:s={W}x{H}[base]",
             "[base][top]overlay=0:0[layer1]",
             f"[layer1][bar]overlay=0:{top_h}[layer2]",
-            f"[layer2][speaker]overlay={(W-circle)//2}:{circle_y}[vout]",
+            f"[layer2][speaker]overlay={(W-circle)//2}:{circle_y}[assembled]",
+            f"[assembled]scale={W}:{H}[vout]",
         ])
 
     if lid == "header-news":

@@ -13,6 +13,9 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
         'data-tab="cta"',
         'id="ctaX"',
         'id="ctaY"',
+        'id="ctaFont"',
+        'id="headlineFont"',
+        'value="{{clip.title}}"',
         'data-tab="library"',
         'id="assetSearch"',
         'id="assetImportForm"',
@@ -22,6 +25,9 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
 
     assert 'data-tab="auto-edit"' not in html
     assert 'syncCtaControls' in js
+    assert "replaceOverlay(o=>o.type==='cta'" in js
+    assert 'autoVideoTitle:true' in js
+    assert 'fontFamily:`"${o.fontFamily' in js
     assert "const start=e=>{if(dragging||e.button!==0" in js
     assert "document.addEventListener('mousemove',move)" in js
     assert '/api/v1/clips/${boot.clipId}/timeline' in js
