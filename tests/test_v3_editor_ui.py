@@ -42,6 +42,9 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
     assert '.save-editor-btn' in css
     assert ':not(.save-editor-btn)' in css
     assert '.safe-center-v,.safe-center-h' in css
+    assert 'captionTimeline' not in html
+    assert 'captionTimelineItems' in js
+    assert 'selectCaptionCue' in js
 
 
 def test_editor_library_can_insert_assets_at_playhead():

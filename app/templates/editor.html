@@ -134,17 +134,10 @@
 
 <div class="preview-quality-note">Visualização em baixa qualidade • O clipe final será em resolução nativa.</div>
 <section class="v3-timeline card" id="multiTrackTimeline">
-  <div class="timeline-head"><div><b>Timeline Pro · Schema V3</b><span class="muted">Vídeo, B-roll, legendas, áudio, efeitos e overlays</span></div><span id="v3TimelineStatus" class="muted">Carregando…</span></div>
-  <div class="timeline-toolbar"><button id="timelineSplit" class="btn small">✂ Cortar</button><button id="timelineDuplicate" class="btn small">⧉ Duplicar</button><button id="timelineDelete" class="btn small danger">⌫ Excluir</button><label>Zoom <input id="timelineZoom" type="range" min="0.5" max="6" step="0.1" value="1"></label><span class="muted">Ctrl+roda: zoom · Shift+roda: horizontal</span></div>
+  <div class="timeline-head"><div><b>Timeline do editor</b><span class="muted">Vídeo, legendas, áudio, efeitos e overlays</span></div><span id="v3TimelineStatus" class="muted">Carregando…</span></div>
+  <div class="timeline-toolbar"><button id="timelineSplit" class="btn small">✂ Cortar</button><button id="timelineDuplicate" class="btn small">⧉ Duplicar</button><button id="timelineDelete" class="btn small danger">⌫ Excluir</button><button id="splitCue" class="btn small">✂ Dividir legenda</button><button id="mergeCue" class="btn small">⤢ Mesclar legenda</button><button id="deleteCue" class="btn small danger">⌫ Excluir legenda</button><label>Zoom <input id="timelineZoom" type="range" min="0.5" max="6" step="0.1" value="1"></label><span class="muted">Ctrl+roda: zoom · Shift+roda: horizontal</span></div>
   <div class="v3-timeline-scroll"><div id="v3TrackList" class="v3-track-list"></div></div>
   <div id="timelineInspector" class="timeline-inspector"><span class="muted">Selecione um item da timeline para editar.</span></div>
-</section>
-
-<section class="caption-timeline card" id="captionTimeline">
-  <div class="timeline-head"><div><b>Linha do tempo das legendas</b><span class="muted">Clique para corrigir texto e timing</span></div><div class="row"><button id="splitCue" class="btn small">✂ Dividir</button><button id="mergeCue" class="btn small">⤢ Mesclar próxima</button><button id="deleteCue" class="btn small danger">⌫ Excluir</button></div></div>
-  <div class="shortcut-help"><b>Atalhos</b> <span>Espaço: play/pause</span><span>←/→: ±5s</span><span>Ctrl+Z: desfazer</span><span>Ctrl+Shift+Z: refazer</span><span>Ctrl+S: salvar</span></div>
-  <canvas id="waveformCanvas" class="waveform-canvas" aria-label="Forma de onda do áudio"></canvas><div class="timeline-ruler" id="timelineRuler"></div><div class="cue-track" id="cueTrack"></div>
-  <div class="cue-editor" id="cueEditor"><span class="muted">Selecione uma legenda na timeline.</span></div>
 </section>
 
 <script>
@@ -154,7 +147,7 @@ window.VIRALCLIP_EDITOR={
   state:{{state|tojson}}, cues:{{cues|tojson}}, captionPresets:{{caption_presets|tojson}}, layouts:{{layout_presets|tojson}}, userPresets:{{user_presets|tojson}},
   studioTemplates:{{studio_templates|tojson}}, brandKits:{{brand_kits|tojson}}
 };
-</script><script src="/static/editor.js?v=48-single-cta"></script>
+</script><script src="/static/editor.js?v=50-caption-timeline"></script>
 <script>
 (async function(){
  const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('editorToolsStatus'),list=document.getElementById('revisionList');

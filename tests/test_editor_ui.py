@@ -21,8 +21,9 @@ def test_editor_page_exposes_visual_presets_layouts_timeline_and_export(monkeypa
     r = client.get('/clips/c1/edit')
     assert r.status_code == 200
     html = r.text
-    for text in ('Estilos de legenda', 'Layouts de vídeo', 'Posição vertical', 'Brand Kit', 'Baixar MP4', 'captionTimeline'):
+    for text in ('Estilos de legenda', 'Layouts de vídeo', 'Posição vertical', 'Brand Kit', 'Baixar MP4', 'multiTrackTimeline'):
         assert text in html
+    assert 'captionTimeline' not in html
     assert '/static/editor.js' in html
     assert 'Renderizar preview' not in html
     assert 'Render final' not in html
