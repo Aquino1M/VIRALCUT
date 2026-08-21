@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -73,10 +76,27 @@ def _automatic_cookie_browsers() -> list[str]:
 def _managed_cookie_file() -> Path | None:
     """Return the operator-managed YouTube session, when mounted on this worker."""
     raw_path = os.getenv("YTDLP_COOKIES_FILE", "").strip()
-    if not raw_path:
+    if raw_path:
+        path = Path(raw_path).expanduser()
+        if path.is_file() and path.stat().st_size:
+            return path
+
+    encoded = os.getenv("YTDLP_COOKIES_B64", "").strip()
+    if not encoded:
         return None
-    path = Path(raw_path).expanduser()
-    return path if path.is_file() and path.stat().st_size else None
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error):
+        return None
+    if not content.lstrip().startswith(b"# Netscape HTTP Cookie File"):
+        return None
+    cache_path = Path(tempfile.gettempdir()) / "viralclip-youtube-cookies.txt"
+    try:
+        cache_path.write_bytes(content)
+        os.chmod(cache_path, 0o600)
+    except OSError:
+        return None
+    return cache_path
 
 
 def _po_token_provider_args() -> dict:
@@ -164,18 +184,15 @@ def _clean_download_error(exc: Exception) -> str:
 def ingest_url(url: str, dest_dir: Path) -> Path:
     """Download a public URL with YouTube 2026 compatibility fallbacks.
 
-    Strategy for YouTube:
-      1. Normal yt-dlp + EJS + Deno/Node.
-      2. On 403/bot challenge, retry using mweb + an installed PO-token provider
-         (yt-dlp-getpot-wpc). It mints a token using a local Chromium browser.
-      3. Retry with the operator-managed session file, when one is mounted.
-      4. When running beside a browser session, automatically try its cookies.
+    Strategy for YouTube: normal yt-dlp, PO-token clients, then available sessions.
     """
     from yt_dlp.utils import DownloadError
 
     dest_dir.mkdir(parents=True, exist_ok=True)
+    managed_cookie_file = _managed_cookie_file()
+    cookie_opts = {"cookiefile": str(managed_cookie_file)} if managed_cookie_file else {}
     try:
-        return _download_once(url, dest_dir)
+        return _download_once(url, dest_dir, cookie_opts)
     except DownloadError as first_exc:
         first_msg = _clean_download_error(first_exc)
         if not _is_youtube_url(url) or not any(token in first_msg.lower() for token in ("403", "forbidden", "not a bot", "sign in to confirm")):
@@ -189,21 +206,9 @@ def ingest_url(url: str, dest_dir: Path) -> Path:
         if browser_path:
             extractor_args["youtubepot-wpc"] = {"browser_path": [browser_path.as_posix()]}
         try:
-            return _download_once(url, dest_dir, {"extractor_args": extractor_args})
+            return _download_once(url, dest_dir, {"extractor_args": extractor_args, **cookie_opts})
         except DownloadError:
             continue
-
-    managed_cookie_file = _managed_cookie_file()
-    if managed_cookie_file:
-        _cleanup_partial(dest_dir)
-        try:
-            return _download_once(
-                url,
-                dest_dir,
-                {"cookiefile": str(managed_cookie_file), "extractor_args": extractor_args},
-            )
-        except DownloadError as cookie_exc:
-            second_msg = _clean_download_error(cookie_exc)
 
     for browser in _automatic_cookie_browsers():
         _cleanup_partial(dest_dir)

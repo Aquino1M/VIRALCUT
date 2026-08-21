@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import sys
 import types
 from pathlib import Path
@@ -99,7 +100,12 @@ def test_automatic_mode_uses_available_local_browser_after_compatibility(monkeyp
     captured = []
     install_fake_ytdlp(
         monkeypatch,
-        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        [
+            FakeDownloadError("HTTP Error 403: Forbidden"),
+            FakeDownloadError("HTTP Error 403: Forbidden"),
+            FakeDownloadError("HTTP Error 403: Forbidden"),
+            object(),
+        ],
         captured,
     )
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
@@ -117,7 +123,7 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     session.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
     install_fake_ytdlp(
         monkeypatch,
-        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        [object()],
         captured,
     )
     monkeypatch.setenv("YTDLP_COOKIES_FILE", str(session))
@@ -126,8 +132,20 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert result.exists()
-    assert captured[3]["cookiefile"] == str(session)
-    assert "cookiesfrombrowser" not in captured[3]
+    assert captured[0]["cookiefile"] == str(session)
+    assert "cookiesfrombrowser" not in captured[0]
+
+
+def test_base64_managed_cookie_session_is_written_to_private_temp_file(monkeypatch, tmp_path):
+    content = b"# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\ttest\n"
+    monkeypatch.delenv("YTDLP_COOKIES_FILE", raising=False)
+    monkeypatch.setenv("YTDLP_COOKIES_B64", base64.b64encode(content).decode())
+    monkeypatch.setattr(ingest.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    path = ingest._managed_cookie_file()
+
+    assert path == tmp_path / "viralclip-youtube-cookies.txt"
+    assert path.read_bytes() == content
 
 
 def test_private_po_token_provider_is_passed_to_youtube(monkeypatch, tmp_path):
