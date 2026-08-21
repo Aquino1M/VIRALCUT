@@ -10,7 +10,7 @@ from app.config import DATA_DIR, TEMP_DIR, PREVIEW_DIR
 
 MIB = 1024 * 1024
 GIB = 1024 * 1024 * 1024
-DEFAULT_RESERVE_BYTES = 512 * MIB
+DEFAULT_RESERVE_BYTES = 128 * MIB
 
 
 class InsufficientDiskSpace(RuntimeError):
@@ -20,7 +20,7 @@ class InsufficientDiskSpace(RuntimeError):
 def estimate_temp_bytes(source_size: int) -> int:
     """Conservative local working-set estimate for transcribe/render intermediates."""
     size = max(0, int(source_size or 0))
-    return max(512 * MIB, int(size * 1.75))
+    return max(128 * MIB, int(size * 1.75))
 
 
 def evaluate_space(*, source_size: int, free_bytes: int, reserve_bytes: int = DEFAULT_RESERVE_BYTES) -> dict[str, Any]:

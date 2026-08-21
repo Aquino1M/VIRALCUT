@@ -16,6 +16,13 @@ def test_disk_preflight_requires_temp_budget_plus_reserve():
     assert low['required_bytes'] > low['free_bytes']
 
 
+def test_disk_preflight_allows_a_short_video_on_a_small_volume():
+    result = disk_manager.evaluate_space(source_size=30 * 1024**2, free_bytes=400 * 1024**2)
+
+    assert result['ok'] is True
+    assert result['required_bytes'] <= 400 * 1024**2
+
+
 def test_ensure_job_space_raises_actionable_error_when_storage_is_low(monkeypatch, tmp_path: Path):
     source = tmp_path/'source.mp4'
     source.write_bytes(b'x' * 1024)
