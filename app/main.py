@@ -47,6 +47,7 @@ from .services import viral_score as viral_score_service
 from .services import performance as performance_service
 from .services import waveform as waveform_service
 from .services import compute as compute_service
+from .services import compute_fabric
 from .services import cloud_client as cloud_client_service
 from .services import semantic_search as semantic_search_service
 from .services import revisions as revision_service
@@ -220,6 +221,36 @@ def _initial_cues(clip) -> list[dict[str, Any]]:
         except Exception:
             pass
     return []
+
+
+def _rebuild_caption_cues(clip, user) -> tuple[list[dict[str, Any]], str]:
+    """Recover saved captions first; transcribe the clip only when necessary."""
+    transcript_path = Path(clip["transcript_path"]) if clip["transcript_path"] else None
+    if transcript_path and transcript_path.exists():
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+        cues = caption_engine.cues_from_transcript(transcript, float(clip["start_time"]), float(clip["end_time"]))
+        if cues:
+            return editor_service.replace_caption_cues(clip["id"], cues), "transcrição do projeto"
+
+    project_source = Path(clip["source_path"]) if clip["source_path"] else None
+    if project_source and project_source.exists():
+        source, start, end = project_source, float(clip["start_time"]), float(clip["end_time"])
+    else:
+        clip_source = next((Path(clip[key]) for key in ("clean_path", "video_path") if clip[key] and Path(clip[key]).exists()), None)
+        if not clip_source:
+            raise ValueError("O vídeo de origem não está disponível para gerar as legendas.")
+        source, start, end = clip_source, 0.0, max(0.1, float(clip["end_time"]) - float(clip["start_time"]))
+
+    profile = hardware_service.load_or_build_profile()
+    transcript, route = compute_fabric.transcribe_words_adaptive(
+        source, start, end, None, profile=profile,
+        local_backend_id=str((profile.get("asr") or {}).get("selected_backend") or "") or None,
+        mode=str(user["compute_mode"] or "auto"), project_id=str(clip["project_id"]),
+    )
+    cues = caption_engine.cues_from_transcript(transcript, start, end)
+    if not cues:
+        raise ValueError("Não foi possível encontrar fala neste corte.")
+    return editor_service.replace_caption_cues(clip["id"], cues), "CPU Cloud" if route.get("selected") == "cloud_cpu" else "computador"
 
 
 @app.get("/sw.js")
@@ -1258,6 +1289,24 @@ def get_captions(request: Request, clip_id: str):
     if not clip:
         return JSONResponse({"error": "not_found"}, status_code=404)
     return _initial_cues(clip)
+
+
+@app.post("/clips/{clip_id}/captions/rebuild")
+def rebuild_captions(request: Request, clip_id: str):
+    user, redirect = require_login(request)
+    if redirect:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    clip = _owned_clip(user["id"], clip_id)
+    if not clip:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    try:
+        cues, source = _rebuild_caption_cues(clip, user)
+        revision = editor_service.mark_clip_dirty(clip_id)
+        return {"cues": cues, "source": source, "revision": revision}
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    except Exception:
+        return JSONResponse({"error": "Não foi possível gerar as legendas agora. Tente novamente."}, status_code=503)
 
 
 @app.put("/clips/{clip_id}/captions")

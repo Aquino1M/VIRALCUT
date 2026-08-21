@@ -57,6 +57,7 @@
     <nav class="editor-tabs" id="editorTabs"><button class="active" data-tab="captions">T Legenda</button><button data-tab="layout">▦ Layout</button><button data-tab="auto-edit">✦ Auto Edit</button>{% if user.is_admin %}<button data-tab="library">▣ Biblioteca</button>{% endif %}<button data-tab="text">T CTA</button><button data-tab="brand">◇ Brand Kit</button><button data-tab="export">⇩ Export</button></nav>
 
     <div class="tab-panel active" data-panel="captions">
+      <div id="captionRecovery" class="caption-recovery" hidden><b>Este corte ainda não tem legendas.</b><small>Gere a transcrição para aplicar qualquer estilo.</small><button id="rebuildCaptions" type="button" class="btn small">Gerar legendas</button></div>
       <label>Fonte<select id="fontFamily">{% for f in fonts %}<option value="{{f.family}}" {% if f.family==(state.caption_config.fontFamily or 'Bangers') %}selected{% endif %}>{{f.family}}{% if not f.available %} · opcional{% endif %}</option>{% endfor %}</select></label>
       <div class="control-row"><label>Estilo<select id="fontWeight"><option value="400">Regular</option><option value="700">Bold</option><option value="900" selected>Black</option></select></label><label>Alinhamento<select id="align"><option value="left">◀ Esquerda</option><option value="center" selected>● Centro</option><option value="right">Direita ▶</option></select></label></div>
       <div class="segmented" id="textCase"><button data-value="lower">minúsculas</button><button data-value="upper" class="active">MAIÚSCULAS</button><button data-value="original">Original</button></div>
@@ -164,7 +165,7 @@ window.VIRALCLIP_EDITOR={
   state:{{state|tojson}}, cues:{{cues|tojson}}, captionPresets:{{caption_presets|tojson}}, layouts:{{layout_presets|tojson}}, userPresets:{{user_presets|tojson}},
   studioTemplates:{{studio_templates|tojson}}, brandKits:{{brand_kits|tojson}}
 };
-</script><script src="/static/editor.js"></script>
+</script><script src="/static/editor.js?v=43-caption-recovery"></script>
 <script>
 (async function(){
  const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('promptEditStatus'),list=document.getElementById('revisionList');

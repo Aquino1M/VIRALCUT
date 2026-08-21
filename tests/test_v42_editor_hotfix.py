@@ -42,6 +42,8 @@ def test_editor_hotfix_keeps_canvas_safe_and_organizes_caption_layout_tabs():
     assert ".style-picker-panel{display:none}" in css
     assert "&retry=1" in js
     assert "saveAndPrimeProjectPreview" in js
+    assert "rebuildCaptions" in html
+    assert "captions/rebuild" in js
 
 
 def test_project_preview_has_a_separate_full_clip_cache(tmp_path: Path, monkeypatch):

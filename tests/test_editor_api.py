@@ -47,6 +47,19 @@ def test_editor_state_and_caption_api_roundtrip(monkeypatch, tmp_path):
     assert client.get("/clips/c1/captions").json()[0]["text"] == "Olá"
 
 
+def test_rebuild_captions_recovers_project_transcript(monkeypatch, tmp_path):
+    client = setup_client(monkeypatch, tmp_path)
+    transcript = tmp_path / "transcript.json"
+    transcript.write_text(json.dumps({"segments": [{"start": 10, "end": 11, "words": [{"start": 10, "end": 10.4, "word": "Legenda"}, {"start": 10.4, "end": 11, "word": "pronta"}]}]}), encoding="utf-8")
+    db.execute("UPDATE projects SET transcript_path=? WHERE id='p1'", (str(transcript),))
+
+    response = client.post("/clips/c1/captions/rebuild")
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "transcrição do projeto"
+    assert [cue["text"] for cue in response.json()["cues"]] == ["Legenda", "pronta"]
+
+
 def test_bulk_apply_updates_multiple_clips(monkeypatch, tmp_path):
     client = setup_client(monkeypatch, tmp_path)
     response = client.post("/projects/p1/bulk-edit", json={
