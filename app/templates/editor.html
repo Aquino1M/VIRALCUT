@@ -2,7 +2,7 @@
 {% block content %}
 <div class="editor-topline">
   <div class="row"><a class="icon-btn" id="editorBackLink" href="/projects/{{clip.project_id}}" title="Salvar e voltar">←</a><div><div class="eyebrow">EDITOR</div><h1>{{ clip.title }}</h1></div></div>
-  <div class="editor-actions"><span id="autosaveState" class="autosave">✓ Salvo</span><button id="saveEditorBtn" class="btn small">💾 Salvar</button><button id="undoBtn" class="icon-btn" title="Desfazer">↶</button><button id="redoBtn" class="icon-btn" title="Refazer">↷</button><button id="downloadFinal" class="btn primary" type="button">⇩ Baixar MP4</button></div>
+  <div class="editor-actions"><span id="autosaveState" class="autosave">✓ Salvo</span><button id="saveEditorBtn" class="btn small save-editor-btn">💾 Salvar</button><button id="undoBtn" class="icon-btn" title="Desfazer">↶</button><button id="redoBtn" class="icon-btn" title="Refazer">↷</button><button id="downloadFinal" class="btn primary" type="button">⇩ Baixar MP4</button></div>
 </div>
 
 <div class="editor-v2">
@@ -54,7 +54,7 @@
   </section>
 
   <aside class="editor-right card">
-    <nav class="editor-tabs" id="editorTabs"><button class="active" data-tab="captions">T Legenda</button><button data-tab="layout">▦ Layout</button><button data-tab="auto-edit">✦ Auto Edit</button>{% if user.is_admin %}<button data-tab="library">▣ Biblioteca</button>{% endif %}<button data-tab="text">T CTA</button><button data-tab="brand">◇ Brand Kit</button><button data-tab="export">⇩ Export</button></nav>
+    <nav class="editor-tabs" id="editorTabs"><button class="active" data-tab="captions">T Legenda</button><button data-tab="layout">▦ Layout</button><button data-tab="cta">T CTA</button><button data-tab="brand">◇ Brand Kit</button>{% if user.is_admin %}<button data-tab="library">▣ Biblioteca</button>{% endif %}<button data-tab="export">⇩ Export</button></nav>
 
     <div class="tab-panel active" data-panel="captions">
       <div id="captionRecovery" class="caption-recovery" hidden><b>Este corte ainda não tem legendas.</b><small>Gere a transcrição para aplicar qualquer estilo.</small><button id="rebuildCaptions" type="button" class="btn small">Gerar legendas</button></div>
@@ -98,17 +98,6 @@
     </div>
 
 
-    <div class="tab-panel" data-panel="auto-edit">
-      <div class="editor-side-head"><div><h3>Director AI</h3><p class="muted">Lê a transcrição e monta uma edição totalmente ajustável.</p></div><span class="ai-badge">LOCAL</span></div>
-      <label>Estilo<select id="autoEditStyle"><option value="podcast-viral">Podcast Viral</option><option value="noticias">Notícias</option><option value="politica">Política</option><option value="financas">Finanças</option><option value="fofoca">Fofoca</option><option value="documentario">Documentário</option><option value="gaming">Gaming</option><option value="storytelling">Storytelling</option><option value="mrbeast-like">Viral acelerado</option></select></label>
-      <label>Intensidade<select id="autoEditIntensity"><option value="clean">Clean</option><option value="normal" selected>Normal</option><option value="viral">Viral</option><option value="hyper">Hyper</option></select></label>
-      <div class="auto-edit-options"><label class="check"><input id="autoBroll" type="checkbox" checked> B-roll inteligente</label><label class="check"><input id="autoSfx" type="checkbox" checked> Efeitos sonoros</label><label class="check"><input id="autoMusic" type="checkbox" checked> Música</label><label class="check"><input id="autoEffects" type="checkbox" checked> Zooms / movimentos</label><label class="check"><input id="autoFilters" type="checkbox" checked> Filtros</label></div>
-      <button id="autoEditRun" class="btn primary">✦ Montar vídeo automaticamente</button>
-      <button id="autoEditReset" class="btn small danger">Remover decisões do Auto Edit</button>
-      <div id="autoEditStatus" class="render-status">Pronto para analisar a transcrição.</div>
-      <div id="autoEditDecisions" class="auto-edit-decisions"></div>
-    </div>
-
     {% if user.is_admin %}<div class="tab-panel" data-panel="library">
       <div class="editor-side-head"><div><h3>Biblioteca Local</h3><p class="muted">B-roll, SFX, músicas, filtros e efeitos no próprio PC.</p></div><span class="ai-badge">~2 GB</span></div>
       <div id="assetPackStatus" class="asset-pack-status">Carregando biblioteca…</div>
@@ -119,8 +108,8 @@
       <div id="assetResults" class="asset-results"></div>
     </div>{% endif %}
 
-    <div class="tab-panel" data-panel="text">
-      <h3>Texto / CTA</h3><label>Texto<input id="ctaText" placeholder="SIGA PARA MAIS"></label><label>Cor da tarja<input id="ctaBackground" type="color" value="#6d28d9"></label><label>Posição<select id="ctaPosition"><option value="top">Topo</option><option value="middle">Centro</option><option value="bottom" selected>Rodapé</option></select></label><button id="addCta" class="btn primary">＋ Adicionar CTA</button>
+    <div class="tab-panel" data-panel="cta">
+      <h3>CTA</h3><label>Texto<input id="ctaText" placeholder="SIGA PARA MAIS"></label><label>Cor da tarja<input id="ctaBackground" type="color" value="#6d28d9"></label><label>Posição inicial<select id="ctaPosition"><option value="top">Topo</option><option value="middle">Centro</option><option value="bottom" selected>Rodapé</option></select></label><label>Posição vertical <output id="ctaYOut">1660px</output><input id="ctaY" type="range" min="0" max="1770" value="1660"></label><label>Posição horizontal <output id="ctaXOut">40px</output><input id="ctaX" type="range" min="0" max="1080" value="40"></label><p class="note">Arraste a CTA no vídeo para reposicionar, como a legenda.</p><button id="addCta" class="btn primary">＋ Adicionar CTA</button>
       <hr><label>Título no vídeo<input id="headlineText" placeholder="SEU TÍTULO VIRAL AQUI"></label><button id="addHeadline" class="btn">＋ Adicionar título</button>
     </div>
 
@@ -165,7 +154,7 @@ window.VIRALCLIP_EDITOR={
   state:{{state|tojson}}, cues:{{cues|tojson}}, captionPresets:{{caption_presets|tojson}}, layouts:{{layout_presets|tojson}}, userPresets:{{user_presets|tojson}},
   studioTemplates:{{studio_templates|tojson}}, brandKits:{{brand_kits|tojson}}
 };
-</script><script src="/static/editor.js?v=43-caption-recovery"></script>
+</script><script src="/static/editor.js?v=46-cta-drag"></script>
 <script>
 (async function(){
  const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('promptEditStatus'),list=document.getElementById('revisionList');
