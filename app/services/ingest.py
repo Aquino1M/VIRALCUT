@@ -181,16 +181,17 @@ def ingest_url(url: str, dest_dir: Path) -> Path:
         if not _is_youtube_url(url) or not any(token in first_msg.lower() for token in ("403", "forbidden", "not a bot", "sign in to confirm")):
             raise RuntimeError(first_msg) from first_exc
 
-    _cleanup_partial(dest_dir)
     browser_path = _detect_chromium_browser()
-    extractor_args = {"youtube": {"player_client": ["mweb"]}, **_po_token_provider_args()}
-    if browser_path:
-        extractor_args["youtubepot-wpc"] = {"browser_path": [browser_path.as_posix()]}
-
-    try:
-        return _download_once(url, dest_dir, {"extractor_args": extractor_args})
-    except DownloadError as second_exc:
-        second_msg = _clean_download_error(second_exc)
+    extractor_args = {}
+    for player_client in ("mweb", "web"):
+        _cleanup_partial(dest_dir)
+        extractor_args = {"youtube": {"player_client": [player_client]}, **_po_token_provider_args()}
+        if browser_path:
+            extractor_args["youtubepot-wpc"] = {"browser_path": [browser_path.as_posix()]}
+        try:
+            return _download_once(url, dest_dir, {"extractor_args": extractor_args})
+        except DownloadError:
+            continue
 
     managed_cookie_file = _managed_cookie_file()
     if managed_cookie_file:

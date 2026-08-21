@@ -77,6 +77,7 @@ def test_automatic_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_path)
         [
             FakeDownloadError("HTTP Error 403: Forbidden"),
             FakeDownloadError("HTTP Error 403: Forbidden"),
+            FakeDownloadError("HTTP Error 403: Forbidden"),
             object(),
         ],
         captured,
@@ -90,14 +91,15 @@ def test_automatic_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_path)
     assert result.exists()
     assert "cookiesfrombrowser" not in captured[0]
     assert "cookiesfrombrowser" not in captured[1]
-    assert captured[2]["cookiesfrombrowser"] == ("brave", None, None, None)
+    assert captured[2]["extractor_args"]["youtube"]["player_client"] == ["web"]
+    assert captured[3]["cookiesfrombrowser"] == ("brave", None, None, None)
 
 
 def test_automatic_mode_uses_available_local_browser_after_compatibility(monkeypatch, tmp_path):
     captured = []
     install_fake_ytdlp(
         monkeypatch,
-        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
         captured,
     )
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
@@ -106,7 +108,7 @@ def test_automatic_mode_uses_available_local_browser_after_compatibility(monkeyp
     result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert result.exists()
-    assert captured[2]["cookiesfrombrowser"] == ("chrome", None, None, None)
+    assert captured[3]["cookiesfrombrowser"] == ("chrome", None, None, None)
 
 
 def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_path):
@@ -115,7 +117,7 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     session.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
     install_fake_ytdlp(
         monkeypatch,
-        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
         captured,
     )
     monkeypatch.setenv("YTDLP_COOKIES_FILE", str(session))
@@ -124,8 +126,8 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
     assert result.exists()
-    assert captured[2]["cookiefile"] == str(session)
-    assert "cookiesfrombrowser" not in captured[2]
+    assert captured[3]["cookiefile"] == str(session)
+    assert "cookiesfrombrowser" not in captured[3]
 
 
 def test_private_po_token_provider_is_passed_to_youtube(monkeypatch, tmp_path):
@@ -141,11 +143,11 @@ def test_private_po_token_provider_is_passed_to_youtube(monkeypatch, tmp_path):
 
 def test_automatic_mode_reports_generic_error_when_no_session_is_available(monkeypatch, tmp_path):
     captured = []
-    install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden")], captured)
+    install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden")], captured)
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
     monkeypatch.setattr(ingest, "_automatic_cookie_browsers", lambda: [])
 
     with pytest.raises(RuntimeError, match="modo automático"):
         ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
 
-    assert len(captured) == 2
+    assert len(captured) == 3
