@@ -80,7 +80,9 @@ templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 
 
 def render(request: Request, template: str, **ctx):
-    context = {"request": request, "app_name": APP_NAME, "user": current_user(request), **ctx}
+    support_admin_id = request.session.get("support_admin_id")
+    support_admin = fetchone("SELECT id FROM users WHERE id=? AND is_admin=1", (support_admin_id,)) if support_admin_id else None
+    context = {"request": request, "app_name": APP_NAME, "user": current_user(request), "support_mode": bool(support_admin), **ctx}
     return templates.TemplateResponse(request=request, name=template, context=context)
 
 
@@ -296,6 +298,7 @@ def register(request: Request, email: str = Form(...), password: str = Form(...)
         (email, hash_password(password), now_iso()),
     )
     user = fetchone("SELECT id FROM users WHERE email=?", (email,))
+    request.session.clear()
     request.session["user_id"] = user["id"]
     return RedirectResponse("/dashboard", status_code=303)
 
@@ -310,6 +313,7 @@ def login(request: Request, email: str = Form(...), password: str = Form(...)):
     row = fetchone("SELECT * FROM users WHERE email=?", (email.strip().lower(),))
     if not row or not verify_password(password, row["password_hash"]):
         return render(request, "auth.html", mode="login", error="E-mail ou senha inválidos.")
+    request.session.clear()
     request.session["user_id"] = row["id"]
     hardware_service.load_or_build_profile()
     return RedirectResponse("/dashboard", status_code=303)
@@ -420,11 +424,51 @@ def admin_processing_mode(request: Request, user_id: int, mode: str = Form("auto
     admin, redirect = require_admin(request)
     if redirect:
         return redirect
-    if mode not in {"auto", "local", "cloud"}:
+    if mode not in {"auto", "hybrid", "local", "cloud"}:
         return HTMLResponse("Modo de processamento inválido", status_code=400)
     if not fetchone("SELECT id FROM users WHERE id=?", (user_id,)):
         return HTMLResponse("Usuário não encontrado", status_code=404)
     execute("UPDATE users SET compute_mode=? WHERE id=?", (mode, user_id))
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/password")
+def admin_reset_password(request: Request, user_id: int, password: str = Form(...)):
+    admin, redirect = require_admin(request)
+    if redirect:
+        return redirect
+    if len(password) < 8:
+        return HTMLResponse("Use uma senha com pelo menos 8 caracteres", status_code=400)
+    if not fetchone("SELECT id FROM users WHERE id=?", (user_id,)):
+        return HTMLResponse("Usuário não encontrado", status_code=404)
+    execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(password), user_id))
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/support")
+def admin_open_support_session(request: Request, user_id: int):
+    admin, redirect = require_admin(request)
+    if redirect:
+        return redirect
+    target = fetchone("SELECT id,is_admin FROM users WHERE id=?", (user_id,))
+    if not target:
+        return HTMLResponse("Usuário não encontrado", status_code=404)
+    if target["is_admin"]:
+        return HTMLResponse("Não é possível abrir suporte para uma conta administrativa", status_code=400)
+    request.session["support_admin_id"] = admin["id"]
+    request.session["user_id"] = target["id"]
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.post("/admin/support/stop")
+def admin_stop_support_session(request: Request):
+    admin_id = request.session.get("support_admin_id")
+    admin = fetchone("SELECT id,is_admin FROM users WHERE id=?", (admin_id,)) if admin_id else None
+    if not admin or not admin["is_admin"]:
+        request.session.clear()
+        return RedirectResponse("/login", status_code=303)
+    request.session.clear()
+    request.session["user_id"] = admin["id"]
     return RedirectResponse("/admin", status_code=303)
 
 

@@ -76,6 +76,31 @@ def test_library_and_admin_are_hidden_from_regular_users(monkeypatch, tmp_path):
     assert client.get("/api/v1/assets").status_code == 403
 
 
+def test_admin_can_choose_hybrid_reset_password_and_open_limited_support(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    admin_id = db.fetchone("SELECT id FROM users WHERE email=?", ("shell@test.com",))["id"]
+    client.post("/logout")
+    client.post("/register", data={"email": "support@test.com", "password": "abcdef"})
+    target_id = db.fetchone("SELECT id FROM users WHERE email=?", ("support@test.com",))["id"]
+    client.post("/logout")
+    client.post("/login", data={"email": "shell@test.com", "password": "abcdef"})
+
+    assert "Híbrido" in client.get("/admin").text
+    assert client.post(f"/admin/users/{target_id}/processing-mode", data={"mode": "hybrid"}).status_code == 200
+    assert db.fetchone("SELECT compute_mode FROM users WHERE id=?", (target_id,))["compute_mode"] == "hybrid"
+    assert client.post(f"/admin/users/{target_id}/password", data={"password": "newpassword"}).status_code == 200
+    assert client.post(f"/admin/users/{admin_id}/support").status_code == 400
+
+    response = client.post(f"/admin/users/{target_id}/support", follow_redirects=False)
+    assert response.headers["location"] == "/dashboard"
+    assert "Modo suporte ativo" in client.get("/dashboard").text
+    assert client.get("/admin").status_code == 403
+    assert client.post("/admin/support/stop", follow_redirects=False).headers["location"] == "/admin"
+
+    client.post("/logout")
+    assert client.post("/login", data={"email": "support@test.com", "password": "newpassword"}).status_code == 200
+
+
 def test_hardware_page_uses_detected_profile(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(

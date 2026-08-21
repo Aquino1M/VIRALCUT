@@ -8,12 +8,18 @@
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('viralclip-theme')||'dark'}catch(e){}</script>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#8441ff">
-  <link rel="stylesheet" href="/static/style.css?v=52-brand-bulk">
+  <link rel="stylesheet" href="/static/style.css?v=53-admin-support">
   <link rel="stylesheet" href="/font-css">
 </head>
 {% set path = request.url.path %}
 {% set full_editor = ('/edit' in path or '/bulk-editor' in path) %}
 <body class="{% if user %}authenticated{% endif %} {% if full_editor %}full-editor-page{% endif %}">
+  {% if support_mode %}
+  <form class="support-mode-banner" action="/admin/support/stop" method="post">
+    <span>Modo suporte ativo: você está no workspace de {{ user.email }}.</span>
+    <button class="btn small" type="submit">Voltar ao Admin</button>
+  </form>
+  {% endif %}
   {% if user and not full_editor %}
   <div class="studio-shell">
     <aside class="studio-sidebar" id="studio-sidebar">

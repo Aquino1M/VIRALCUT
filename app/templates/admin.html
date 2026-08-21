@@ -3,7 +3,7 @@
 {% block breadcrumb %}Admin{% endblock %}
 {% block content %}
 <div class="section-head">
-  <div><span class="create-kicker">ADMINISTRAÇÃO</span><h1>Processamento dos usuários</h1><p class="muted">O modo automático já escolhe a melhor opção disponível para cada tarefa.</p></div>
+  <div><span class="create-kicker">ADMINISTRAÇÃO</span><h1>Processamento e suporte</h1><p class="muted">Automático escolhe a melhor rota; Híbrido combina este computador e a CPU Cloud.</p></div>
   <a class="btn" href="/library">Gerenciar biblioteca</a>
 </div>
 <div class="admin-user-list">
@@ -13,11 +13,21 @@
     <form action="/admin/users/{{ item.id }}/processing-mode" method="post">
       <label for="mode-{{ item.id }}">Processamento</label>
       <select id="mode-{{ item.id }}" name="mode" onchange="this.form.submit()">
-        <option value="auto" {% if item.compute_mode not in ['local','cloud'] %}selected{% endif %}>Automático (recomendado)</option>
+        <option value="auto" {% if item.compute_mode not in ['hybrid','local','cloud'] %}selected{% endif %}>Automático (recomendado)</option>
+        <option value="hybrid" {% if item.compute_mode=='hybrid' %}selected{% endif %}>Híbrido (computador + CPU Cloud)</option>
         <option value="local" {% if item.compute_mode=='local' %}selected{% endif %}>Neste computador</option>
         <option value="cloud" {% if item.compute_mode=='cloud' %}selected{% endif %}>CPU Cloud</option>
       </select>
     </form>
+    {% if not item.is_admin %}
+    <div class="admin-user-actions">
+      <form action="/admin/users/{{ item.id }}/password" method="post">
+        <label for="password-{{ item.id }}">Nova senha</label>
+        <div><input id="password-{{ item.id }}" name="password" type="password" minlength="8" required placeholder="Mínimo de 8 caracteres"><button class="btn small" type="submit">Salvar senha</button></div>
+      </form>
+      <form action="/admin/users/{{ item.id }}/support" method="post"><button class="btn small" type="submit">Acessar projetos</button></form>
+    </div>
+    {% endif %}
   </article>
   {% endfor %}
 </div>
