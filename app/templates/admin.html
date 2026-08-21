@@ -19,15 +19,17 @@
         <option value="cloud" {% if item.compute_mode=='cloud' %}selected{% endif %}>CPU Cloud</option>
       </select>
     </form>
-    {% if not item.is_admin %}
     <div class="admin-user-actions">
       <form action="/admin/users/{{ item.id }}/password" method="post">
         <label for="password-{{ item.id }}">Nova senha</label>
         <div><input id="password-{{ item.id }}" name="password" type="password" minlength="8" required placeholder="Mínimo de 8 caracteres"><button class="btn small" type="submit">Salvar senha</button></div>
       </form>
+      {% if item.is_admin %}
+      <a class="btn small" href="/dashboard">Abrir meus projetos</a>
+      {% else %}
       <form action="/admin/users/{{ item.id }}/support" method="post"><button class="btn small" type="submit">Acessar projetos</button></form>
+      {% endif %}
     </div>
-    {% endif %}
   </article>
   {% endfor %}
 </div>

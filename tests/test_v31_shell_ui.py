@@ -86,6 +86,8 @@ def test_admin_can_choose_hybrid_reset_password_and_open_limited_support(monkeyp
     client.post("/login", data={"email": "shell@test.com", "password": "abcdef"})
 
     assert "Híbrido" in client.get("/admin").text
+    assert "Salvar senha" in client.get("/admin").text
+    assert "Abrir meus projetos" in client.get("/admin").text
     assert client.post(f"/admin/users/{target_id}/processing-mode", data={"mode": "hybrid"}).status_code == 200
     assert db.fetchone("SELECT compute_mode FROM users WHERE id=?", (target_id,))["compute_mode"] == "hybrid"
     assert client.post(f"/admin/users/{target_id}/password", data={"password": "newpassword"}).status_code == 200
