@@ -126,10 +126,9 @@
 </div>
 
 
-<section class="card prompt-edit-card">
-  <div class="row between"><div><span class="create-kicker">PROMPT-TO-EDIT · NÃO DESTRUTIVO</span><h3>Edite com comandos</h3><p class="muted">Ex.: “sem zoom”, “remover B-roll”, “sem emojis”, “legenda amarela”. Cada comando cria um checkpoint antes de mudar a timeline.</p></div><button id="createCheckpoint" class="btn small" type="button">＋ Checkpoint</button></div>
-  <div class="prompt-edit-row"><input id="promptEditInput" placeholder="Digite uma alteração segura na edição"><button id="promptEditRun" class="btn accent" type="button">✦ Aplicar</button></div>
-  <div id="promptEditStatus" class="muted"></div><div class="quality-actions"><select id="qualityPlatform"><option value="">Geral</option><option value="youtube-shorts">YouTube Shorts</option><option value="tiktok">TikTok</option><option value="instagram-reels">Instagram Reels</option></select><button id="qualityCheckRun" class="btn small" type="button">✓ Quality Guard</button><span id="qualityCheckStatus" class="muted"></span></div>
+<section class="card editor-tools-card">
+  <div class="row between"><div><h3>Revisões e qualidade</h3><p class="muted">Salve um checkpoint ou confira o corte antes de exportar.</p></div><button id="createCheckpoint" class="btn small" type="button">＋ Checkpoint</button></div>
+  <div id="editorToolsStatus" class="muted"></div><div class="quality-actions"><select id="qualityPlatform"><option value="">Geral</option><option value="youtube-shorts">YouTube Shorts</option><option value="tiktok">TikTok</option><option value="instagram-reels">Instagram Reels</option></select><button id="qualityCheckRun" class="btn small" type="button">✓ Quality Guard</button><span id="qualityCheckStatus" class="muted"></span></div>
   <details class="revision-drawer"><summary>Histórico de versões</summary><div id="revisionList" class="revision-list"><span class="muted">Carregando checkpoints…</span></div></details>
 </section>
 
@@ -158,11 +157,10 @@ window.VIRALCLIP_EDITOR={
 </script><script src="/static/editor.js?v=48-single-cta"></script>
 <script>
 (async function(){
- const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('promptEditStatus'),list=document.getElementById('revisionList');
+ const cfg=window.VIRALCLIP_EDITOR||{},clipId=cfg.clipId,status=document.getElementById('editorToolsStatus'),list=document.getElementById('revisionList');
  async function loadRevisions(){if(!clipId||!list)return;const r=await fetch(`/api/v1/clips/${clipId}/revisions`),d=await r.json();list.innerHTML=(d.revisions||[]).map(x=>`<div class="revision-row"><span><b>r${x.revision}</b> ${x.label||'Checkpoint'}<small>${x.created_at||''}</small></span><button class="btn small" data-rev="${x.revision}" type="button">Restaurar</button></div>`).join('')||'<span class="muted">Nenhum checkpoint ainda.</span>';list.querySelectorAll('[data-rev]').forEach(b=>b.onclick=async()=>{if(!confirm(`Restaurar a revisão r${b.dataset.rev}? O estado atual será salvo antes.`))return;status.textContent='Restaurando…';const rr=await fetch(`/api/v1/clips/${clipId}/revisions/${b.dataset.rev}/restore`,{method:'POST'});const dd=await rr.json();status.textContent=rr.ok?'✓ Revisão restaurada':(dd.error||'Falha ao restaurar');if(rr.ok)location.reload();});}
  document.getElementById('createCheckpoint')?.addEventListener('click',async()=>{const label=prompt('Nome do checkpoint:','Checkpoint manual');if(label===null)return;status.textContent='Salvando checkpoint…';const r=await fetch(`/api/v1/clips/${clipId}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});status.textContent=r.ok?'✓ Checkpoint criado':'Falha ao criar checkpoint';await loadRevisions();});
  document.getElementById('qualityCheckRun')?.addEventListener('click',async()=>{const p=document.getElementById('qualityPlatform').value,out=document.getElementById('qualityCheckStatus');out.textContent='Verificando render e safe-zones…';const r=await fetch(`/api/v1/clips/${clipId}/quality${p?'?platform='+encodeURIComponent(p):''}`),d=await r.json();if(!r.ok){out.textContent=d.error||'Falha no Quality Guard';return;}const errs=d.errors||[],warn=d.warnings||[];out.textContent=errs.length?`✕ ${errs.length} erro(s): ${errs[0]}`:warn.length?`⚠ ${warn.length} aviso(s): ${warn[0]}`:'✓ Quality Guard aprovado';});
- document.getElementById('promptEditRun')?.addEventListener('click',async()=>{const promptText=document.getElementById('promptEditInput').value.trim();if(!promptText){status.textContent='Digite uma alteração.';return;}status.textContent='Aplicando comando não destrutivo…';const r=await fetch(`/api/v1/clips/${clipId}/prompt-edit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:promptText})});const d=await r.json();status.textContent=r.ok?`✓ ${d.actions.join(' · ')}`:(d.error||'Comando não suportado');if(r.ok)setTimeout(()=>location.reload(),650);});
  await loadRevisions();
 })();
 </script>

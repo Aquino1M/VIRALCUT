@@ -51,7 +51,6 @@ from .services import compute_fabric
 from .services import cloud_client as cloud_client_service
 from .services import semantic_search as semantic_search_service
 from .services import revisions as revision_service
-from .services import prompt_edit as prompt_edit_service
 from .services import creator_intelligence as creator_intelligence_service
 from .services import media_analysis as media_analysis_service
 
@@ -2114,19 +2113,6 @@ def api_v1_project_semantic_search(request: Request, project_id: str, q: str = Q
     except Exception:
         return JSONResponse({"error": "transcript_invalid"}, status_code=500)
     return {"query": q, "results": semantic_search_service.search_transcript(transcript, q, limit=limit)}
-
-
-@app.post("/api/v1/clips/{clip_id}/prompt-edit")
-def api_v1_prompt_edit(request: Request, clip_id: str, payload: dict[str, Any] = Body(...)):
-    user, redirect = require_login(request)
-    if redirect:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    if not _owned_clip(user["id"], clip_id):
-        return JSONResponse({"error": "clip_not_found"}, status_code=404)
-    try:
-        return prompt_edit_service.apply_prompt(clip_id, str(payload.get("prompt") or ""))
-    except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
 
 
 @app.get("/api/v1/clips/{clip_id}/revisions")

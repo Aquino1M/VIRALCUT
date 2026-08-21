@@ -22,7 +22,7 @@ Principais adições V4.2:
 - Compute Dashboard e histórico de decisões do scheduler;
 - ViralScore 3.0 explicável + Creator Intelligence calibrado somente com métricas reais;
 - busca semântica e perguntas ancoradas no transcript;
-- Prompt-to-Edit não destrutivo + checkpoints/restauração;
+- checkpoints e restauração de edição;
 - Quality Guard 2.0, Thumbnail Brain, detecção de silêncio/cenas e loudness opcional;
 - Auto Edit 2.0 com progress bar e Ken Burns;
 - Templates/Brand Kits importáveis/exportáveis e overrides por plataforma.

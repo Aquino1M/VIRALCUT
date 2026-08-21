@@ -24,6 +24,8 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
         assert token in html
 
     assert 'data-tab="auto-edit"' not in html
+    assert 'Edite com comandos' not in html
+    assert 'prompt-edit' not in html
     assert 'syncCtaControls' in js
     assert "replaceOverlay(o=>o.type==='cta'" in js
     assert 'autoVideoTitle:true' in js
