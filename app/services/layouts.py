@@ -18,7 +18,12 @@ LAYOUT_PRESETS = [
     {"id": "talking-broll", "name": "Talking Head + B-roll", "description": "Falante principal e contexto visual", "icon": "▱"},
     {"id": "podcast-top-bottom", "name": "Top/Bottom Podcast", "description": "Dois participantes em 50/50", "icon": "▤"},
     {"id": "podcast-dynamic", "name": "Podcast Dinâmico", "description": "Dois participantes com prioridade de atividade", "icon": "◧"},
+    {"id": "choquei", "name": "Choquei", "description": "Contexto no topo, manchete e apresentador", "icon": "▰"},
     {"id": "choquei-movimento", "name": "Choquei + Movimento", "description": "Contexto, tarja central e close do falante", "icon": "▰"},
+    {"id": "choquei-invertida", "name": "Choquei Invertida", "description": "Apresentador, manchete e contexto", "icon": "▰"},
+    {"id": "aquino", "name": "Aquino", "description": "Contexto editorial com apresentador em destaque", "icon": "▰"},
+    {"id": "branco-podcast", "name": "Branco Podcast", "description": "Podcast limpo com chamada central branca", "icon": "▯"},
+    {"id": "reel-redondo", "name": "Reel Redondo", "description": "Contexto e apresentador em moldura circular", "icon": "◉"},
     {"id": "header-news", "name": "Header / Notícias", "description": "Cabeçalho visual, tarja e falante abaixo", "icon": "▱"},
     {"id": "story-documentary", "name": "Story / Documentário", "description": "Contexto principal com narrador em apoio", "icon": "▥"},
 ]
@@ -140,16 +145,22 @@ def ensure_layout_overlays(state: dict[str, Any], title: str) -> dict[str, Any]:
     out = deepcopy(state or {})
     lid = out.get("layout_preset_id") or "auto"
     recipes = {
+        "choquei": {"x":55,"y":728,"width":970,"height":170,"fontSize":48,"background":"#DC2626"},
         "choquei-movimento": {"x":55,"y":728,"width":970,"height":170,"fontSize":48,"background":"#DC2626"},
+        "choquei-invertida": {"x":55,"y":1045,"width":970,"height":170,"fontSize":48,"background":"#DC2626"},
+        "aquino": {"x":55,"y":728,"width":970,"height":170,"fontSize":48,"background":"#DC2626"},
+        "branco-podcast": {"x":55,"y":728,"width":970,"height":170,"fontSize":48,"background":"#FFFFFF","color":"#111111"},
+        "reel-redondo": {"x":55,"y":825,"width":970,"height":170,"fontSize":48,"background":"#DC2626"},
         "header-news": {"x":55,"y":585,"width":970,"height":150,"fontSize":42,"background":"#FF665A"},
         "story-documentary": {"x":45,"y":720,"width":990,"height":190,"fontSize":44,"background":"#DC2626"},
     }
     overlays = [dict(x) for x in (out.get("overlays") or []) if not x.get("autoLayoutTitle")]
     if lid in recipes and str(title or "").strip():
+        recipe = recipes[lid]
         overlays.append({
-            "type":"text", "text":str(title).strip().upper()[:120], "color":"#FFFFFF",
+            "type":"text", "text":str(title).strip().upper()[:120], "color":recipe.get("color", "#FFFFFF"),
             "fontFamily":"Montserrat", "fontWeight":"900", "align":"center",
-            "strokeWidth":1, "zIndex":65, "autoLayoutTitle":True, **recipes[lid],
+            "strokeWidth":1, "zIndex":65, "autoLayoutTitle":True, **recipe,
         })
     out["overlays"] = overlays
     return out
@@ -304,7 +315,7 @@ def build_layout_filter(
             f"[stacked]scale={W}:{H}[vout]",
         ])
 
-    if lid == "choquei-movimento":
+    if lid in {"choquei", "choquei-movimento", "aquino"}:
         split, labels = _split_input(3); roles = _panel_roles(tracking, 2, activity_first=True)
         return ";".join([
             split,
@@ -313,6 +324,34 @@ def build_layout_filter(
             _panel(labels[2], W, H-int(H*0.365)-max(2,int(H*0.125)), roles[0], zoom=1.14) + "[bottom]",
             "[top][bar][bottom]vstack=inputs=3[stacked]",
             f"[stacked]scale={W}:{H}[vout]",
+        ])
+
+    if lid in {"choquei-invertida", "branco-podcast"}:
+        split, labels = _split_input(3); roles = _panel_roles(tracking, 2, activity_first=True)
+        top_h=max(2,int(H*0.51)); bar_h=max(2,int(H*0.13)); bottom_h=H-top_h-bar_h
+        bar_color="0xFFFFFF" if lid == "branco-podcast" else "0xDC2626"
+        return ";".join([
+            split,
+            _panel(labels[0], W, top_h, roles[0], zoom=1.14) + "[top]",
+            f"[s1]setpts=PTS-STARTPTS,scale={W}:{bar_h},drawbox=x=0:y=0:w=iw:h=ih:color={bar_color}:t=fill[bar]",
+            _panel(labels[2], W, bottom_h, "context") + "[bottom]",
+            "[top][bar][bottom]vstack=inputs=3[stacked]",
+            f"[stacked]scale={W}:{H}[vout]",
+        ])
+
+    if lid == "reel-redondo":
+        split, labels = _split_input(3); role = _panel_roles(tracking, 1, activity_first=True)[0]
+        top_h=max(2,int(H*0.43)); bar_h=max(2,int(H*0.13)); circle=max(2,min(W,H-top_h-bar_h))
+        circle_y=H-circle
+        return ";".join([
+            split,
+            _panel(labels[0], W, top_h, "context") + "[top]",
+            f"[s1]setpts=PTS-STARTPTS,scale={W}:{bar_h},drawbox=x=0:y=0:w=iw:h=ih:color=0xDC2626:t=fill[bar]",
+            _panel(labels[2], circle, circle, role, zoom=1.14) + "[speaker]",
+            f"color=c=black:s={W}x{H}[base]",
+            "[base][top]overlay=0:0[layer1]",
+            f"[layer1][bar]overlay=0:{top_h}[layer2]",
+            f"[layer2][speaker]overlay={(W-circle)//2}:{circle_y}[vout]",
         ])
 
     if lid == "header-news":
@@ -353,7 +392,12 @@ def layout_preview_panels(layout_id: str) -> list[dict[str, int]]:
         "quad": [(0, 0, 50, 50), (50, 0, 50, 50), (0, 50, 50, 50), (50, 50, 50, 50)],
         "six-split": [(0, 0, 33, 50), (33, 0, 34, 50), (67, 0, 33, 50), (0, 50, 33, 50), (33, 50, 34, 50), (67, 50, 33, 50)],
         "react": [(0, 0, 100, 30), (0, 30, 100, 70)], "talking-broll": [(0, 0, 100, 70), (0, 70, 100, 30)],
+        "choquei": [(0, 0, 100, 36), (0, 49, 100, 51)],
         "choquei-movimento": [(0, 0, 100, 36), (0, 49, 100, 51)],
+        "choquei-invertida": [(0, 0, 100, 51), (0, 64, 100, 36)],
+        "aquino": [(0, 0, 100, 36), (0, 49, 100, 51)],
+        "branco-podcast": [(0, 0, 100, 51), (0, 64, 100, 36)],
+        "reel-redondo": [(0, 0, 100, 43), (0, 56, 100, 44)],
         "header-news": [(0, 0, 100, 29), (0, 41, 100, 59)],
         "story-documentary": [(0, 0, 100, 69), (0, 69, 100, 31)],
     }

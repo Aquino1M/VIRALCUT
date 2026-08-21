@@ -6,7 +6,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# Accept the deployment-level secret file when the application is unpacked in a nested folder.
+load_dotenv(BASE_DIR / ".env" if (BASE_DIR / ".env").exists() else BASE_DIR.parent / ".env")
 
 
 def parse_worker_origins(value: str) -> list[str]:

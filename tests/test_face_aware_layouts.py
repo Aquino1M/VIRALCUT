@@ -19,7 +19,7 @@ TRACKING_TWO = {
 
 def test_registry_contains_v21_layouts():
     ids = {p["id"] for p in layouts.list_layout_presets()}
-    assert {"podcast-dynamic", "choquei-movimento", "header-news", "story-documentary"} <= ids
+    assert {"podcast-dynamic", "choquei", "choquei-movimento", "choquei-invertida", "aquino", "branco-podcast", "reel-redondo", "header-news", "story-documentary"} <= ids
 
 
 def test_auto_uses_face_tracking_to_choose_layout():
@@ -51,7 +51,7 @@ def test_more_panels_than_faces_use_context_variants_not_identical_panels():
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
-@pytest.mark.parametrize("layout_id", ["single","split","podcast-dynamic","choquei-movimento","header-news","story-documentary"])
+@pytest.mark.parametrize("layout_id", ["single","split","podcast-dynamic","choquei","choquei-movimento","choquei-invertida","aquino","branco-podcast","reel-redondo","header-news","story-documentary"])
 def test_v21_face_aware_filtergraphs_are_accepted_by_ffmpeg(layout_id):
     graph = layouts.build_layout_filter(layout_id, tracking=TRACKING_TWO, config={"backgroundBlur": 7})
     proc = subprocess.run([
