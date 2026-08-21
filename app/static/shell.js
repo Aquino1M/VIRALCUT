@@ -45,5 +45,7 @@
   }
   document.documentElement.dataset.browserAcceleration = mode;
   window.ViralClipBrowserAcceleration = mode;
-  window.dispatchEvent(new CustomEvent('viralclip:browser-acceleration', { detail: { mode } }));
+window.dispatchEvent(new CustomEvent('viralclip:browser-acceleration', { detail: { mode } }));
 })();
+
+document.querySelectorAll('[data-cut-wizard]').forEach((wizard) => { let step=0; const steps=[...wizard.querySelectorAll('[data-wizard-step]')], back=wizard.querySelector('[data-wizard-back]'), next=wizard.querySelector('[data-wizard-next]'), submit=wizard.querySelector('[data-wizard-submit]'), status=wizard.querySelector('[data-wizard-status]'), title=wizard.querySelector('[data-wizard-title]'), desc=wizard.querySelector('[data-wizard-description]'), copy=[['Defina o formato do vídeo','Escolha a proporção e o enquadramento ideal para seu conteúdo.'],['Ajuste a duração do seu vídeo','Defina a duração dos cortes e a faixa que será analisada.'],['Revise e crie seus cortes','Personalize layout e legendas antes de processar.']]; const draw=()=>{steps.forEach((x,i)=>x.hidden=i!==step);wizard.querySelectorAll('.cut-progress i').forEach((x,i)=>x.classList.toggle('active',i<=step));back.hidden=step===0;next.hidden=step===2;submit.hidden=step!==2;status.textContent=`Etapa ${step+1} de 3`;title.textContent=copy[step][0];desc.textContent=copy[step][1]};next.onclick=()=>{step++;draw()};back.onclick=()=>{step--;draw()};wizard.querySelectorAll('[name="duration_preset"]').forEach(x=>x.onchange=()=>{if(x.value!=='auto')['min_duration','max_duration','target_duration'].forEach(n=>wizard.querySelector(`[name="${n}"]`).value=x.value)});});

@@ -419,6 +419,23 @@ def admin_page(request: Request):
     return render(request, "admin.html", users=users)
 
 
+@app.get("/admin/monitor")
+def admin_monitor(request: Request):
+    _, redirect = require_admin(request)
+    if redirect:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    tasks = [dict(row) for row in fetchall(
+        "SELECT t.task_type,t.state,t.progress,t.node_kind,t.created_at,p.title,u.email "
+        "FROM processing_tasks t LEFT JOIN projects p ON p.id=t.project_id "
+        "LEFT JOIN users u ON u.id=p.user_id ORDER BY t.created_at DESC LIMIT 30"
+    )]
+    history = [dict(row) for row in fetchall(
+        "SELECT node_kind,COUNT(*) count,ROUND(AVG(seconds),1) avg_seconds "
+        "FROM performance_samples WHERE ok=1 GROUP BY node_kind ORDER BY count DESC"
+    )]
+    return {"tasks": tasks, "history": history}
+
+
 @app.post("/admin/users/{user_id}/processing-mode")
 def admin_processing_mode(request: Request, user_id: int, mode: str = Form("auto")):
     admin, redirect = require_admin(request)

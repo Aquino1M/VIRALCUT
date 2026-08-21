@@ -6,7 +6,9 @@
   <div><span class="create-kicker">ADMINISTRAÇÃO</span><h1>Processamento e suporte</h1><p class="muted">Automático escolhe a melhor rota; Híbrido combina este computador e a CPU Cloud.</p></div>
   <a class="btn" href="/library">Gerenciar biblioteca</a>
 </div>
-<div class="admin-user-list">
+<nav class="admin-tabs"><button class="active" type="button" data-admin-tab="users">Usuários</button><button type="button" data-admin-tab="monitor">Fila e recursos</button></nav>
+<section data-admin-panel="monitor" hidden class="admin-monitor card"><div class="admin-monitor-head"><div><b>Fila em tempo real</b><small>Atualiza a cada 5 segundos.</small></div><span id="adminMonitorUpdated" class="muted"></span></div><div id="adminMonitorSummary" class="admin-monitor-summary"></div><div class="admin-monitor-columns"><div><h3>Processando agora</h3><div id="adminMonitorQueue"></div></div><div><h3>Histórico de recursos</h3><div id="adminMonitorHistory"></div></div></div></section>
+<div class="admin-user-list" data-admin-panel="users">
   {% for item in users %}
   <article class="card admin-user-card">
     <div><b>{{ item.email }}</b><small>{% if item.is_admin %}Administrador{% else %}Usuário{% endif %}</small></div>
@@ -22,7 +24,7 @@
     <div class="admin-user-actions">
       <form action="/admin/users/{{ item.id }}/password" method="post">
         <label for="password-{{ item.id }}">Nova senha</label>
-        <div><input id="password-{{ item.id }}" name="password" type="password" minlength="8" required placeholder="Mínimo de 8 caracteres"><button class="btn small" type="submit">Salvar senha</button></div>
+        <div class="password-field"><input id="password-{{ item.id }}" name="password" type="password" minlength="8" required placeholder="Mínimo de 8 caracteres"><button class="password-toggle" type="button" aria-label="Mostrar senha" data-password-toggle>◉</button><button class="btn small" type="submit">Salvar senha</button></div>
       </form>
       {% if item.is_admin %}
       <a class="btn small" href="/dashboard">Abrir meus projetos</a>
@@ -33,4 +35,5 @@
   </article>
   {% endfor %}
 </div>
+<script>document.addEventListener('DOMContentLoaded',()=>{const tabs=document.querySelectorAll('[data-admin-tab]'),panels=document.querySelectorAll('[data-admin-panel]'),show=n=>{tabs.forEach(x=>x.classList.toggle('active',x.dataset.adminTab===n));panels.forEach(x=>x.hidden=x.dataset.adminPanel!==n);if(n==='monitor')load()};tabs.forEach(x=>x.onclick=()=>show(x.dataset.adminTab));document.querySelectorAll('[data-password-toggle]').forEach(b=>b.onclick=()=>{const i=b.parentElement.querySelector('input');i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'◉':'◉';b.setAttribute('aria-label',i.type==='password'?'Mostrar senha':'Ocultar senha')});const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));async function load(){const r=await fetch('/admin/monitor');if(!r.ok)return;const d=await r.json(),active=d.tasks.filter(x=>['queued','running'].includes(x.state));document.getElementById('adminMonitorSummary').innerHTML=`<b>${active.length} tarefas ativas</b><span>${d.tasks.filter(x=>x.node_kind==='cloud_cpu').length} na CPU Cloud</span><span>${d.tasks.filter(x=>String(x.node_kind||'').startsWith('local')).length} locais</span>`;document.getElementById('adminMonitorQueue').innerHTML=active.length?active.map(x=>`<div class="monitor-row"><b>${esc(x.task_type)}</b><span>${esc(x.email||'Sistema')} · ${esc(x.node_kind||'aguardando')}</span><small>${Math.round((x.progress||0)*100)}%</small></div>`).join(''):'<p class="muted">Nenhuma tarefa em andamento.</p>';document.getElementById('adminMonitorHistory').innerHTML=d.history.length?d.history.map(x=>`<div class="monitor-row"><b>${esc(x.node_kind)}</b><span>${x.count} tarefas concluídas</span><small>${x.avg_seconds}s média</small></div>`).join(''):'<p class="muted">Ainda não há histórico.</p>';document.getElementById('adminMonitorUpdated').textContent='Atualizado agora'}setInterval(()=>{if(!document.querySelector('[data-admin-panel="monitor"]').hidden)load()},5000)})</script>
 {% endblock %}
