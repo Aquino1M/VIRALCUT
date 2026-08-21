@@ -66,6 +66,11 @@ def _browser_cookie_profile_available(browser: str) -> bool:
     return any(root.is_dir() and any(root.glob("**/Cookies")) for root in roots)
 
 
+def _automatic_cookie_browsers() -> list[str]:
+    """Use only browser sessions physically available to this worker."""
+    return [browser for browser in ("brave", "chrome", "edge", "firefox", "chromium", "vivaldi", "opera") if _browser_cookie_profile_available(browser)]
+
+
 def _managed_cookie_file() -> Path | None:
     """Return the operator-managed YouTube session, when mounted on this worker."""
     raw_path = os.getenv("YTDLP_COOKIES_FILE", "").strip()
@@ -165,8 +170,7 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
       2. On 403/bot challenge, retry using mweb + an installed PO-token provider
          (yt-dlp-getpot-wpc). It mints a token using a local Chromium browser.
       3. Retry with the operator-managed session file, when one is mounted.
-      4. Only if the user explicitly selected a browser, retry using that
-         browser's cookies.
+      4. When running beside a browser session, automatically try its cookies.
     """
     from yt_dlp.utils import DownloadError
 
@@ -205,26 +209,23 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
         except DownloadError as cookie_exc:
             second_msg = _clean_download_error(cookie_exc)
 
-    if cookie_browser and _browser_cookie_profile_available(cookie_browser):
+    cookie_browsers = ([cookie_browser] if _browser_cookie_profile_available(cookie_browser) else []) if cookie_browser else _automatic_cookie_browsers()
+    for browser in cookie_browsers:
         _cleanup_partial(dest_dir)
         try:
             return _download_once(
                 url,
                 dest_dir,
                 {
-                    "cookiesfrombrowser": (cookie_browser, None, None, None),
+                    "cookiesfrombrowser": (browser, None, None, None),
                     "extractor_args": extractor_args,
                 },
             )
         except DownloadError as cookie_exc:
             final_msg = _clean_download_error(cookie_exc)
-            raise RuntimeError(
-                "O YouTube recusou o download mesmo com o modo de compatibilidade. "
-                f"Detalhe: {final_msg}. Tente abrir o vídeo no navegador selecionado, "
-                "recarregar a página e criar um novo projeto, ou envie o arquivo de vídeo diretamente."
-            ) from cookie_exc
+            continue
 
-    if cookie_browser:
+    if cookie_browser and not _browser_cookie_profile_available(cookie_browser):
         raise RuntimeError(
             f"A sessão do {cookie_browser.title()} não está neste computador de processamento. "
             "A seleção de navegador só funciona quando o app e o navegador estão na mesma máquina. "
@@ -232,8 +233,8 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
         )
 
     raise RuntimeError(
-        "O YouTube não liberou a importação deste vídeo agora. Tente novamente em alguns minutos "
-        "ou envie o arquivo de vídeo diretamente."
+        "O modo automático do YouTube tentou os métodos disponíveis neste processamento, mas a importação não foi liberada agora. "
+        "Tente novamente em alguns minutos ou envie o arquivo de vídeo diretamente."
     )
 
 

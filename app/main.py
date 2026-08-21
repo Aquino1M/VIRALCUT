@@ -18,7 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
 from .auth import current_user
-from .config import APP_NAME, BASE_DIR, MAX_UPLOAD_MB, OUTPUT_DIR, SECRET_KEY, TEMP_DIR, THUMB_DIR, WORKER_ALLOWED_ORIGINS
+from .config import APP_NAME, BASE_DIR, MAX_UPLOAD_MB, OUTPUT_DIR, PREVIEW_DIR, SECRET_KEY, TEMP_DIR, THUMB_DIR, UPLOAD_DIR, WORKER_ALLOWED_ORIGINS
 from .db import execute, fetchall, fetchone, hash_password, init_db, now_iso, verify_password
 from .services import captions as caption_engine
 from .services import editor as editor_service
@@ -409,14 +409,20 @@ def library_page(request: Request, q: str = Query(""), kind: str = Query("")):
 
 
 @app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request):
+def admin_page(request: Request, q: str = Query("")):
     user, redirect = require_admin(request)
     if redirect:
         return redirect
+    query = q.strip()
+    params: tuple[str, ...] = ()
+    where = ""
+    if query:
+        where = " WHERE LOWER(email) LIKE ?"
+        params = (f"%{query.lower()}%",)
     users = [dict(row) for row in fetchall(
-        "SELECT id,email,is_admin,compute_mode,created_at FROM users ORDER BY is_admin DESC,created_at"
+        f"SELECT id,email,is_admin,compute_mode,created_at FROM users{where} ORDER BY is_admin DESC,created_at", params
     )]
-    return render(request, "admin.html", users=users)
+    return render(request, "admin.html", users=users, q=query)
 
 
 @app.get("/admin/monitor")
@@ -477,6 +483,37 @@ def admin_reset_password(request: Request, user_id: int, password: str = Form(..
     if not fetchone("SELECT id FROM users WHERE id=?", (user_id,)):
         return HTMLResponse("Usuário não encontrado", status_code=404)
     execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(password), user_id))
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/delete")
+def admin_delete_user(request: Request, user_id: int):
+    admin, redirect = require_admin(request)
+    if redirect:
+        return redirect
+    target = fetchone("SELECT id,is_admin FROM users WHERE id=?", (user_id,))
+    if not target:
+        return HTMLResponse("Usuário não encontrado", status_code=404)
+    if target["is_admin"] or int(target["id"]) == int(admin["id"]):
+        return HTMLResponse("Contas administrativas não podem ser excluídas por esta tela", status_code=400)
+    project_rows = fetchall("SELECT id FROM projects WHERE user_id=?", (user_id,))
+    clip_rows = fetchall(
+        "SELECT c.id FROM clips c JOIN projects p ON p.id=c.project_id WHERE p.user_id=?", (user_id,)
+    )
+    execute("DELETE FROM users WHERE id=?", (user_id,))
+    for project in project_rows:
+        project_id = str(project["id"])
+        if re.fullmatch(r"[A-Za-z0-9_-]+", project_id):
+            shutil.rmtree(OUTPUT_DIR / project_id, ignore_errors=True)
+            shutil.rmtree(TEMP_DIR / project_id, ignore_errors=True)
+            shutil.rmtree(UPLOAD_DIR / project_id, ignore_errors=True)
+        (THUMB_DIR / f"{project_id}_source.jpg").unlink(missing_ok=True)
+    for clip in clip_rows:
+        clip_id = str(clip["id"])
+        if re.fullmatch(r"[A-Za-z0-9_-]+", clip_id):
+            (THUMB_DIR / f"{clip_id}.jpg").unlink(missing_ok=True)
+            for path in PREVIEW_DIR.glob(f"{clip_id}_*"):
+                path.unlink(missing_ok=True)
     return RedirectResponse("/admin", status_code=303)
 
 
@@ -849,7 +886,7 @@ async def create_project(
         "auto_edit_intensity": auto_edit_intensity,
         "language": language,
         "custom_keywords": custom_keywords,
-        "youtube_cookies": youtube_cookies,
+        "youtube_cookies": "",
         "start_range": start_range,
         "end_range": end_range,
     })
@@ -1048,7 +1085,7 @@ def update_project_defaults(request: Request, project_id: str, payload: dict[str
         "clip_duration_policy", "start_range", "end_range", "language", "target_languages",
         "aspect_ratio", "layout_preset_id", "layout_config", "caption_preset_id",
         "caption_font", "caption_config", "captions", "emojis", "use_llm",
-        "cta_enabled", "overlays", "custom_keywords", "youtube_cookies", "crop_style",
+        "cta_enabled", "overlays", "custom_keywords", "crop_style",
     }
     merged = {**current, **{k: v for k, v in payload.items() if k in allowed}}
     normalized = project_service.normalize_project_settings(merged)

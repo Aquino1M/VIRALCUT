@@ -76,8 +76,8 @@ def test_youtube_browser_choice_is_available_for_new_and_failed_projects(monkeyp
     new_page = client.get('/projects/new')
     assert new_page.status_code == 200
     assert 'name="youtube_cookies"' in new_page.text
-    for browser in ('brave', 'chrome', 'edge', 'firefox'):
-        assert f'value="{browser}"' in new_page.text
+    assert 'value="brave"' not in new_page.text
+    assert 'value="chrome"' not in new_page.text
 
     db.execute("UPDATE projects SET status='error', message='HTTP 403' WHERE id='p1'")
     project_page = client.get('/projects/p1')
@@ -85,7 +85,7 @@ def test_youtube_browser_choice_is_available_for_new_and_failed_projects(monkeyp
     assert 'id="defaultYoutubeCookies"' in project_page.text
     saved = client.post('/projects/p1/defaults', json={'youtube_cookies': 'brave'})
     assert saved.status_code == 200
-    assert json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])['youtube_cookies'] == 'brave'
+    assert json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])['youtube_cookies'] == ''
 
 
 def test_admin_monitor_reports_cloud_cpu_status(monkeypatch, tmp_path):

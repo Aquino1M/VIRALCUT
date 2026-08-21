@@ -93,6 +93,22 @@ def test_explicit_brave_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_
     assert captured[2]["cookiesfrombrowser"] == ("brave", None, None, None)
 
 
+def test_automatic_mode_uses_available_local_browser_after_compatibility(monkeypatch, tmp_path):
+    captured = []
+    install_fake_ytdlp(
+        monkeypatch,
+        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        captured,
+    )
+    monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
+    monkeypatch.setattr(ingest, "_automatic_cookie_browsers", lambda: ["chrome"])
+
+    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
+
+    assert result.exists()
+    assert captured[2]["cookiesfrombrowser"] == ("chrome", None, None, None)
+
+
 def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_path):
     captured = []
     session = tmp_path / "youtube-cookies.txt"

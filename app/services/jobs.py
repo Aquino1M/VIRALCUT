@@ -361,7 +361,7 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
             job_store.update_stage(job_id, current=1.0, total=1.0, message="Fonte reutilizada do processamento anterior")
         elif project_service.is_remote_source_type(row["source_type"]):
             _update(project_id, progress=7, message=f"Baixando vídeo de {row['source_type'].upper()}")
-            source = ingest_url(row["source_value"], work_dir, cookie_browser=settings.get("youtube_cookies", ""))
+            source = ingest_url(row["source_value"], work_dir)
         else:
             source = ingest_upload(row["source_path"], work_dir)
         resume["source_path"] = str(source)
