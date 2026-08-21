@@ -433,7 +433,25 @@ def admin_monitor(request: Request):
         "SELECT node_kind,COUNT(*) count,ROUND(AVG(seconds),1) avg_seconds "
         "FROM performance_samples WHERE ok=1 GROUP BY node_kind ORDER BY count DESC"
     )]
-    return {"tasks": tasks, "history": history}
+    cloud_info = cloud_client_service.health(timeout=2.5)
+    capabilities = cloud_info.get("capabilities") or {}
+    queue = cloud_info.get("queue") or {}
+    cloud_tasks = [task for task in tasks if task.get("node_kind") == "cloud_cpu" and task.get("state") in {"queued", "running"}]
+    return {
+        "tasks": tasks,
+        "history": history,
+        "cloud": {
+            "configured": cloud_client_service.configured(),
+            "online": bool(cloud_info.get("ok")),
+            "status": str(cloud_info.get("status") or "offline"),
+            "remote_active": int(queue.get("active") or 0),
+            "remote_queued": int(queue.get("queued") or 0),
+            "app_active": len(cloud_tasks),
+            "cpu_count": int(capabilities.get("cpu_count") or 0),
+            "ram_mb": int(capabilities.get("ram_mb") or 0),
+            "free_cpu_only": bool(cloud_info.get("free_cpu_only", True)),
+        },
+    }
 
 
 @app.post("/admin/users/{user_id}/processing-mode")

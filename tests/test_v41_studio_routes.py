@@ -88,6 +88,24 @@ def test_youtube_browser_choice_is_available_for_new_and_failed_projects(monkeyp
     assert json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])['youtube_cookies'] == 'brave'
 
 
+def test_admin_monitor_reports_cloud_cpu_status(monkeypatch, tmp_path):
+    client, _ = setup_client(monkeypatch, tmp_path)
+    monkeypatch.setattr(main.cloud_client_service, 'configured', lambda: True)
+    monkeypatch.setattr(main.cloud_client_service, 'health', lambda **_: {
+        'ok': True, 'status': 'online', 'free_cpu_only': True,
+        'queue': {'active': 1, 'queued': 2}, 'capabilities': {'cpu_count': 4, 'ram_mb': 15786},
+    })
+
+    monitor = client.get('/admin/monitor')
+
+    assert monitor.status_code == 200
+    assert monitor.json()['cloud'] == {
+        'configured': True, 'online': True, 'status': 'online', 'remote_active': 1,
+        'remote_queued': 2, 'app_active': 0, 'cpu_count': 4, 'ram_mb': 15786, 'free_cpu_only': True,
+    }
+    assert 'adminCloudStatus' in client.get('/admin').text
+
+
 def test_sidebar_hides_technical_and_unused_workflow_links():
     html = Path('app/templates/base.html').read_text(encoding='utf-8')
     assert 'href="/publish"' not in html
