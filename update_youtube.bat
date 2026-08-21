@@ -14,7 +14,7 @@ if not exist .venv\Scripts\python.exe (
 )
 
 call .venv\Scripts\activate.bat
-python -m pip install --upgrade "yt-dlp[default,deno]" yt-dlp-getpot-wpc
+python -m pip install --upgrade "yt-dlp[default,deno]" yt-dlp-getpot-wpc bgutil-ytdlp-pot-provider
 if errorlevel 1 goto :error
 
 echo.

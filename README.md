@@ -33,6 +33,8 @@ Configuração da CPU gratuita: veja `LIGHTNING_FREE_CPU_SETUP.md`. Detalhes com
 
 Quando o YouTube exigir autenticação, configure no processador um perfil exclusivo e exporte a sessão autorizada para um arquivo `cookies.txt` no formato Netscape. Monte esse arquivo como segredo/volume e defina `YTDLP_COOKIES_FILE` com o caminho absoluto. O arquivo nunca deve entrar no Git, banco de dados ou navegador dos usuários.
 
+Para importação no Railway, crie no mesmo projeto um serviço Docker com a imagem `brainicism/bgutil-ytdlp-pot-provider:latest`, nomeie-o `youtube-pot` e defina no serviço ViralClip `YTDLP_BGUTIL_BASE_URL=http://youtube-pot.railway.internal:4416`. O serviço fica privado: não crie domínio público. Esse provedor gera o PO Token por vídeo e evita depender do navegador de cada usuário.
+
 ## Smart Studio Engine V4.1
 
 A V4.1 consolida o fluxo completo **capturar → criar → editar → renderizar → publicar → analisar** sem transformar o computador do usuário em uma render farm. O preview trabalha com proxies adaptativos, enquanto o MP4 final continua usando a mídia original.

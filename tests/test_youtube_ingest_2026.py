@@ -112,6 +112,17 @@ def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_pa
     assert "cookiesfrombrowser" not in captured[2]
 
 
+def test_private_po_token_provider_is_passed_to_youtube(monkeypatch, tmp_path):
+    captured = []
+    install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), object()], captured)
+    monkeypatch.setenv("YTDLP_BGUTIL_BASE_URL", "http://youtube-pot.railway.internal:4416/")
+    monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
+
+    ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path)
+
+    assert captured[1]["extractor_args"]["youtubepot-bgutilhttp"]["base_url"] == ["http://youtube-pot.railway.internal:4416"]
+
+
 def test_missing_browser_profile_does_not_trigger_cookie_download(monkeypatch, tmp_path):
     captured = []
     install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden")], captured)

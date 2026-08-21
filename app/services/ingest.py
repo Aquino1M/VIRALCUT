@@ -75,6 +75,14 @@ def _managed_cookie_file() -> Path | None:
     return path if path.is_file() and path.stat().st_size else None
 
 
+def _po_token_provider_args() -> dict:
+    """Use the private BgUtils provider only when the operator configured it."""
+    base_url = os.getenv("YTDLP_BGUTIL_BASE_URL", "").strip().rstrip("/")
+    if not base_url.startswith(("http://", "https://")):
+        return {}
+    return {"youtubepot-bgutilhttp": {"base_url": [base_url]}}
+
+
 def _js_runtimes() -> dict:
     deno = shutil.which("deno")
     if deno:
@@ -176,7 +184,7 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
 
     _cleanup_partial(dest_dir)
     browser_path = _detect_chromium_browser()
-    extractor_args = {"youtube": {"player_client": ["mweb"]}}
+    extractor_args = {"youtube": {"player_client": ["mweb"]}, **_po_token_provider_args()}
     if browser_path:
         extractor_args["youtubepot-wpc"] = {"browser_path": [browser_path.as_posix()]}
 
@@ -224,9 +232,8 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
         )
 
     raise RuntimeError(
-        "O YouTube bloqueou o download (HTTP 403). O app tentou o modo moderno com PO Token, "
-        f"mas ele também falhou: {second_msg}. Em Novo projeto, selecione seu navegador em "
-        "'Cookies do YouTube' (Brave/Chrome/Edge/Firefox) e tente novamente, ou envie o vídeo como arquivo."
+        "O YouTube não liberou a importação deste vídeo agora. Tente novamente em alguns minutos "
+        "ou envie o arquivo de vídeo diretamente."
     )
 
 
