@@ -98,7 +98,7 @@ def diagnose() -> int:
 def update() -> None:
     ensure_venv()
     script = ROOT / "tools" / "check_youtube.py"
-    run([str(VENV_PY), "-m", "pip", "install", "--upgrade", "yt-dlp[default,deno]", "yt-dlp-getpot-wpc"], check=False)
+    run([str(VENV_PY), "-m", "pip", "install", "--upgrade", "yt-dlp[default,deno]", "yt-dlp-getpot-wpc", "bgutil-ytdlp-pot-provider"], check=False)
     if script.exists():
         run([str(VENV_PY), str(script)], check=False)
 
