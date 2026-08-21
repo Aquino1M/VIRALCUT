@@ -127,6 +127,34 @@ def test_hardware_page_uses_detected_profile(monkeypatch, tmp_path):
     assert "TURBO" in html
 
 
+def test_retry_restores_the_persistent_upload_path(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    user_id = db.fetchone("SELECT id FROM users WHERE email=?", ("shell@test.com",))["id"]
+    project_id = "retry-upload"
+    upload = tmp_path / "data" / "uploads" / project_id / "upload.mp4"
+    temporary = tmp_path / "temp" / project_id / "source.mp4"
+    upload.parent.mkdir(parents=True)
+    temporary.parent.mkdir(parents=True)
+    upload.write_bytes(b"original")
+    temporary.write_bytes(b"temporary")
+    now = db.now_iso()
+    db.execute(
+        "INSERT INTO projects(id,user_id,title,source_type,source_path,mode,status,progress,message,settings_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        (project_id, user_id, "Retry", "upload", str(temporary), "smart", "error", 100, "Erro", "{}", now, now),
+    )
+    monkeypatch.setattr(main, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp")
+    monkeypatch.setattr(main, "OUTPUT_DIR", tmp_path / "outputs")
+    monkeypatch.setattr(main, "submit", lambda _project_id: "queued")
+
+    response = client.post(f"/projects/{project_id}/retry", follow_redirects=False)
+
+    assert response.status_code == 303
+    saved = db.fetchone("SELECT status,source_path FROM projects WHERE id=?", (project_id,))
+    assert saved["status"] == "queued"
+    assert saved["source_path"] == str(upload)
+
+
 def test_reference_secrets_are_not_embedded_in_templates():
     root = Path(main.BASE_DIR) / "app" / "templates"
     combined = "\n".join(p.read_text(encoding="utf-8") for p in root.glob("*.html"))

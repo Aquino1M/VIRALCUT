@@ -135,6 +135,8 @@
 <div class="preview-quality-note">Visualização em baixa qualidade • O clipe final será em resolução nativa.</div>
 <section class="v3-timeline card" id="multiTrackTimeline">
   <div class="timeline-head"><div><b>Timeline do editor</b><span class="muted">Vídeo, legendas, áudio, efeitos e overlays</span></div><span id="v3TimelineStatus" class="muted">Carregando…</span></div>
+  <div class="shortcut-help"><b>Atalhos</b><span>Espaço: play/pausa</span><span>Ctrl+Z: desfazer</span><span>Ctrl+S: salvar</span></div>
+  <canvas id="waveformCanvas" class="waveform-canvas" aria-label="Forma de onda do áudio"></canvas>
   <div class="timeline-toolbar"><button id="timelineSplit" class="btn small">✂ Cortar</button><button id="timelineDuplicate" class="btn small">⧉ Duplicar</button><button id="timelineDelete" class="btn small danger">⌫ Excluir</button><button id="splitCue" class="btn small">✂ Dividir legenda</button><button id="mergeCue" class="btn small">⤢ Mesclar legenda</button><button id="deleteCue" class="btn small danger">⌫ Excluir legenda</button><label>Zoom <input id="timelineZoom" type="range" min="0.5" max="6" step="0.1" value="1"></label><span class="muted">Ctrl+roda: zoom · Shift+roda: horizontal</span></div>
   <div class="v3-timeline-scroll"><div id="v3TrackList" class="v3-track-list"></div></div>
   <div id="timelineInspector" class="timeline-inspector"><span class="muted">Selecione um item da timeline para editar.</span></div>

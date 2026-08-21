@@ -352,15 +352,16 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
             project_thumb_path = str(project_thumb)
         except Exception:
             project_thumb_path = None
+        source_update = {} if row["source_type"] == "upload" else {"source_path": str(source)}
         _update(
             project_id,
             progress=12,
             message=f"Transcrevendo · {backend_label}",
-            source_path=str(source),
             duration=source_duration or None,
             channel_label=(row["source_type"] or "VIDEO").upper(),
             source_metadata_json=json.dumps(source_meta, ensure_ascii=False),
             thumbnail_path=project_thumb_path,
+            **source_update,
         )
 
         # V3.4 Pass A: fast segment timestamps for the complete source.
