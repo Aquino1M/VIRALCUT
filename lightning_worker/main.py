@@ -175,6 +175,7 @@ def _machine_caps() -> dict[str, Any]:
         "gpu_name": gpu_name,
         "machine_type": "gpu-rejected" if gpu else ("free-cpu" if cpu_is_free_shape else "paid-cpu-rejected"),
         "heavy_slots": HEAVY_SLOTS,
+        "media_tools": {"ffmpeg": bool(shutil.which("ffmpeg")), "ffprobe": bool(shutil.which("ffprobe"))},
         "tasks": ["asr_segments", "asr_words", "highlights", "tracking", "render", "embeddings", "editor_proxy"],
     }
 
@@ -260,7 +261,7 @@ def upload_complete(upload_id: str, payload: dict[str, Any] = Body(default={}), 
     except Exception as exc:
         final.unlink(missing_ok=True); raise HTTPException(400,f'Não foi possível validar mídia: {exc}')
     if check.returncode != 0:
-        final.unlink(missing_ok=True); raise HTTPException(400,'Arquivo enviado não é uma mídia válida para o worker')
+        final.unlink(missing_ok=True); raise HTTPException(400,f"Arquivo enviado não é uma mídia válida para o worker: {(check.stderr or check.stdout).strip()[:300]}")
     _execute("UPDATE uploads SET state='complete',final_path=?,updated_at=? WHERE id=?",(str(final),now_iso(),upload_id))
     return {"upload_id":upload_id,"complete":True,"sha256":row['sha256'],"size":row['size']}
 

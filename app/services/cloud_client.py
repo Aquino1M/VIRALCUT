@@ -46,6 +46,15 @@ def _base() -> str:
     return LIGHTNING_CLOUD_URL.rstrip("/")
 
 
+def _response_detail(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+        detail = body.get("detail", body) if isinstance(body, dict) else body
+    except ValueError:
+        detail = response.text
+    return str(detail).strip().replace("\n", " ")[:500]
+
+
 def _circuit_available() -> bool:
     with _lock:
         if _circuit.failures < _CIRCUIT_FAILURES:
@@ -82,6 +91,9 @@ def health(*, timeout: float = 3.0) -> dict[str, Any]:
         # Hard safety: V4.2 refuses a remote worker that advertises GPU or paid mode.
         if LIGHTNING_FREE_CPU_ONLY and (caps.get("gpu") or str(caps.get("machine_type") or "").lower() not in {"", "cpu", "free-cpu", "free_cpu"}):
             return {"ok": False, "status": "rejected-paid-or-gpu-worker", "free_cpu_only": True, "capabilities": caps}
+        media_tools = caps.get("media_tools")
+        if isinstance(media_tools, dict) and not all(media_tools.get(tool) for tool in ("ffmpeg", "ffprobe")):
+            return {"ok": False, "status": "missing-media-tools", "free_cpu_only": True, "capabilities": caps}
         _success()
         return {"ok": True, "status": data.get("status") or "online", **data, "free_cpu_only": True}
     except Exception as exc:
@@ -115,7 +127,10 @@ def _request(method: str, path: str, *, timeout: float | None = None, **kwargs) 
         raise RuntimeError("Circuit breaker da Lightning está aberto; usando fallback local.")
     with httpx.Client(timeout=timeout or LIGHTNING_TIMEOUT, follow_redirects=True) as client:
         r = client.request(method, f"{_base()}{path}", headers={**_headers(), **kwargs.pop("headers", {})}, **kwargs)
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(f"CPU Cloud retornou HTTP {r.status_code}: {_response_detail(r)}") from exc
         _success()
         return r
 
