@@ -728,6 +728,7 @@ def new_project(request: Request, url: str = Query("")):
         max_upload_mb=MAX_UPLOAD_MB,
         caption_presets=caption_engine.list_caption_presets(),
         layout_presets=layout_presets,
+        brand_kits=brand_kit_service.list_brand_kits(user["id"]),
         fonts=font_service.list_fonts(),
         source_url_prefill=url.strip(),
     )
@@ -765,6 +766,7 @@ async def create_project(
     youtube_cookies: str = Form(""),
     start_range: float = Form(0),
     end_range: float = Form(0),
+    brand_kit_id: str = Form(""),
 ):
     user, redirect = require_login(request)
     if redirect:
@@ -803,6 +805,10 @@ async def create_project(
             max_duration = float(prof["preferred_max"])
             custom_keywords = ",".join(filter(None, [custom_keywords, prof["keywords"]]))
 
+    brand_kit_id = brand_kit_id.strip()
+    if brand_kit_id and not brand_kit_service.get_brand_kit(user["id"], brand_kit_id):
+        return HTMLResponse("Brand Kit não encontrado", status_code=404)
+
     settings = project_service.normalize_project_settings({
         "prompt": prompt,
         "num_clips": num_clips,
@@ -831,8 +837,8 @@ async def create_project(
     })
     now = now_iso()
     execute(
-        "INSERT INTO projects(id,user_id,title,source_type,source_value,source_path,mode,status,progress,message,settings_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (project_id, user["id"], title.strip() or "Novo projeto", source_type, source_value, source_path, mode, "queued", 0, "Na fila", json.dumps(settings, ensure_ascii=False), now, now),
+        "INSERT INTO projects(id,user_id,title,source_type,source_value,source_path,mode,status,progress,message,settings_json,brand_kit_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (project_id, user["id"], title.strip() or "Novo projeto", source_type, source_value, source_path, mode, "queued", 0, "Na fila", json.dumps(settings, ensure_ascii=False), brand_kit_id or None, now, now),
     )
     submit(project_id)
     return RedirectResponse(f"/projects/{project_id}", status_code=303)
@@ -992,14 +998,19 @@ def retry_project(request: Request, project_id: str):
     # Remove only generated/retryable state. The original upload (when present)
     # lives under data/uploads and remains untouched. Remote sources are fetched
     # again from source_value.
+    source_path = project["source_path"]
+    if project["source_type"] == "upload":
+        uploads = list((BASE_DIR / "data" / "uploads" / project_id).glob("upload.*"))
+        if uploads:
+            source_path = str(uploads[0])
     execute("DELETE FROM clips WHERE project_id=?", (project_id,))
     shutil.rmtree(OUTPUT_DIR / project_id, ignore_errors=True)
     shutil.rmtree(TEMP_DIR / project_id, ignore_errors=True)
     now = now_iso()
     execute(
-        "UPDATE projects SET status='queued',progress=0,message='Na fila para reprocessar',"
+        "UPDATE projects SET status='queued',progress=0,message='Na fila para reprocessar',source_path=?,"
         "transcript_path=NULL,tracking_path=NULL,tracking_summary_json='{}',updated_at=? WHERE id=?",
-        (now, project_id),
+        (source_path, now, project_id),
     )
     submit(project_id)
     return RedirectResponse(f"/projects/{project_id}", status_code=303)

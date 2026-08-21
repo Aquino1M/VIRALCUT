@@ -8,7 +8,7 @@
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('viralclip-theme')||'dark'}catch(e){}</script>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#8441ff">
-  <link rel="stylesheet" href="/static/style.css?v=53-admin-support">
+  <link rel="stylesheet" href="/static/style.css?v=55-cut-wizard">
   <link rel="stylesheet" href="/font-css">
 </head>
 {% set path = request.url.path %}
@@ -90,7 +90,7 @@
   {% else %}
       </main>
   {% endif %}
-  <script src="/static/shell.js" defer></script>
+  <script src="/static/shell.js?v=55-cut-wizard" defer></script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}));}</script>
 </body>
 </html>
