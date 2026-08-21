@@ -37,8 +37,9 @@ def test_project_command_center_backfills_viral_score_and_exposes_workflow(monke
     page = client.get('/projects/p1')
     assert page.status_code == 200
     assert 'ViralScore' in page.text
-    assert 'Auto Director' in page.text
     assert 'id="bulkSmartBar"' in page.text
+    assert 'EDITOR EM MASSA' in page.text
+    assert 'id="bulkPreviewList"' in page.text
     assert 'Renderizando' in page.text
     assert 'Agendados' in page.text
     assert 'Publicados' in page.text

@@ -1408,6 +1408,10 @@ def bulk_edit(request: Request, project_id: str, payload: dict[str, Any] = Body(
             state["caption_config"] = {**(state.get("caption_config") or {}), **(payload.get("caption_config") or {})}
         if "layout_config" in payload:
             state["layout_config"] = {**(state.get("layout_config") or {}), **(payload.get("layout_config") or {})}
+        if isinstance(payload.get("cta"), dict):
+            cta = payload["cta"]
+            state["overlays"] = [o for o in (state.get("overlays") or []) if o.get("type") != "cta"]
+            state["overlays"].append({"id": "bulk-cta", "type": "cta", "text": str(cta.get("text") or "SIGA PARA MAIS"), "x": 40, "y": max(0, min(1920, int(cta.get("y") or 1660))), "width": 1000, "height": 150, "background": str(cta.get("background") or "#6d28d9"), "color": str(cta.get("color") or "#ffffff"), "fontSize": 46, "fontFamily": str(cta.get("fontFamily") or "Bangers"), "zIndex": 70})
         editor_service.save_edit_state(clip_id, state)
     return {"updated": len(ids), "clip_ids": ids}
 

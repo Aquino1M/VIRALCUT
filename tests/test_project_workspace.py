@@ -28,5 +28,8 @@ def test_project_workspace_contains_player_filters_bulk_and_download(monkeypatch
     assert 'Por Score' in html
     assert 'Editar selecionados' in html
     assert '<dialog' in html
+    assert 'id="bulkPreviewList"' in html
+    assert 'renderBulkPreviews' in html
+    assert 'bulkCtaEnabled' in html
     assert 'Formato real' in html
     assert '/projects/p1/download-all' in html

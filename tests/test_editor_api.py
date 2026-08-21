@@ -73,6 +73,14 @@ def test_bulk_apply_updates_multiple_clips(monkeypatch, tmp_path):
     assert client.get("/clips/c2/editor-state").json()["caption_preset_id"] == "mrbeast"
 
 
+def test_bulk_apply_replaces_only_the_cta(monkeypatch, tmp_path):
+    client = setup_client(monkeypatch, tmp_path)
+    response = client.post("/projects/p1/bulk-edit", json={"clip_ids": ["c1", "c2"], "cta": {"text": "SIGA", "fontFamily": "Bangers", "color": "#ffffff", "background": "#6d28d9", "y": 1600}})
+    assert response.status_code == 200
+    overlays = client.get("/clips/c1/editor-state").json()["overlays"]
+    assert [item["text"] for item in overlays if item["type"] == "cta"] == ["SIGA"]
+
+
 def test_user_can_save_custom_preset(monkeypatch, tmp_path):
     client = setup_client(monkeypatch, tmp_path)
     r = client.post("/presets", json={"preset_type": "combined", "name": "Meu Viral", "config": {"caption_preset_id": "green-fresh", "layout_preset_id": "single"}, "favorite": True})
