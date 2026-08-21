@@ -29,6 +29,10 @@ Principais adições V4.2:
 
 Configuração da CPU gratuita: veja `LIGHTNING_FREE_CPU_SETUP.md`. Detalhes completos: `docs/V4.2_RELEASE_NOTES.md`. Relatório da implementação: `V4.2_IMPLEMENTATION_REPORT.md`.
 
+### Sessão exclusiva do YouTube
+
+Quando o YouTube exigir autenticação, configure no processador um perfil exclusivo e exporte a sessão autorizada para um arquivo `cookies.txt` no formato Netscape. Monte esse arquivo como segredo/volume e defina `YTDLP_COOKIES_FILE` com o caminho absoluto. O arquivo nunca deve entrar no Git, banco de dados ou navegador dos usuários.
+
 ## Smart Studio Engine V4.1
 
 A V4.1 consolida o fluxo completo **capturar → criar → editar → renderizar → publicar → analisar** sem transformar o computador do usuário em uma render farm. O preview trabalha com proxies adaptativos, enquanto o MP4 final continua usando a mídia original.

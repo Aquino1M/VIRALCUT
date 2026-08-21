@@ -83,6 +83,7 @@ def test_explicit_brave_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_
     )
     monkeypatch.setattr(ingest.shutil, "which", lambda name: f"C:/fake/{name}.exe" if name == "deno" else None)
     monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
+    monkeypatch.setattr(ingest, "_browser_cookie_profile_available", lambda browser: True)
 
     result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
 
@@ -90,3 +91,34 @@ def test_explicit_brave_cookie_fallback_is_only_used_after_403(monkeypatch, tmp_
     assert "cookiesfrombrowser" not in captured[0]
     assert "cookiesfrombrowser" not in captured[1]
     assert captured[2]["cookiesfrombrowser"] == ("brave", None, None, None)
+
+
+def test_managed_cookie_file_is_used_before_browser_profiles(monkeypatch, tmp_path):
+    captured = []
+    session = tmp_path / "youtube-cookies.txt"
+    session.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    install_fake_ytdlp(
+        monkeypatch,
+        [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden"), object()],
+        captured,
+    )
+    monkeypatch.setenv("YTDLP_COOKIES_FILE", str(session))
+    monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
+
+    result = ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
+
+    assert result.exists()
+    assert captured[2]["cookiefile"] == str(session)
+    assert "cookiesfrombrowser" not in captured[2]
+
+
+def test_missing_browser_profile_does_not_trigger_cookie_download(monkeypatch, tmp_path):
+    captured = []
+    install_fake_ytdlp(monkeypatch, [FakeDownloadError("HTTP Error 403: Forbidden"), FakeDownloadError("HTTP Error 403: Forbidden")], captured)
+    monkeypatch.setattr(ingest, "_detect_chromium_browser", lambda: None)
+    monkeypatch.setattr(ingest, "_browser_cookie_profile_available", lambda browser: False)
+
+    with pytest.raises(RuntimeError, match="não está neste computador"):
+        ingest.ingest_url("https://www.youtube.com/watch?v=test", tmp_path, cookie_browser="brave")
+
+    assert len(captured) == 2

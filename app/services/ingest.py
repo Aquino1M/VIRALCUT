@@ -43,6 +43,38 @@ def _detect_chromium_browser() -> Path | None:
     return None
 
 
+def _browser_cookie_profile_available(browser: str) -> bool:
+    """Only ask yt-dlp for a browser session that exists on this machine."""
+    browser = (browser or "").strip().lower()
+    home = Path.home()
+    if browser == "firefox":
+        roots = [home / ".mozilla/firefox", home / "AppData/Roaming/Mozilla/Firefox/Profiles", home / "Library/Application Support/Firefox/Profiles"]
+        return any(root.is_dir() and any(root.glob("*/cookies.sqlite")) for root in roots)
+    local = Path(os.getenv("LOCALAPPDATA") or home / "AppData/Local")
+    mac = home / "Library/Application Support"
+    names = {
+        "brave": ("BraveSoftware/Brave-Browser/User Data", "BraveSoftware/Brave-Browser"),
+        "chrome": ("Google/Chrome/User Data", "Google/Chrome"),
+        "edge": ("Microsoft/Edge/User Data", "Microsoft Edge"),
+        "chromium": ("Chromium/User Data", "Chromium"),
+        "vivaldi": ("Vivaldi/User Data", "Vivaldi"),
+        "opera": ("Opera Software/Opera Stable", "com.operasoftware.Opera"),
+    }.get(browser)
+    if not names:
+        return False
+    roots = [local / names[0], home / ".config" / names[0], mac / names[1]]
+    return any(root.is_dir() and any(root.glob("**/Cookies")) for root in roots)
+
+
+def _managed_cookie_file() -> Path | None:
+    """Return the operator-managed YouTube session, when mounted on this worker."""
+    raw_path = os.getenv("YTDLP_COOKIES_FILE", "").strip()
+    if not raw_path:
+        return None
+    path = Path(raw_path).expanduser()
+    return path if path.is_file() and path.stat().st_size else None
+
+
 def _js_runtimes() -> dict:
     deno = shutil.which("deno")
     if deno:
@@ -124,7 +156,8 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
       1. Normal yt-dlp + EJS + Deno/Node.
       2. On 403/bot challenge, retry using mweb + an installed PO-token provider
          (yt-dlp-getpot-wpc). It mints a token using a local Chromium browser.
-      3. Only if the user explicitly selected a browser, retry using that
+      3. Retry with the operator-managed session file, when one is mounted.
+      4. Only if the user explicitly selected a browser, retry using that
          browser's cookies.
     """
     from yt_dlp.utils import DownloadError
@@ -152,7 +185,19 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
     except DownloadError as second_exc:
         second_msg = _clean_download_error(second_exc)
 
-    if cookie_browser:
+    managed_cookie_file = _managed_cookie_file()
+    if managed_cookie_file:
+        _cleanup_partial(dest_dir)
+        try:
+            return _download_once(
+                url,
+                dest_dir,
+                {"cookiefile": str(managed_cookie_file), "extractor_args": extractor_args},
+            )
+        except DownloadError as cookie_exc:
+            second_msg = _clean_download_error(cookie_exc)
+
+    if cookie_browser and _browser_cookie_profile_available(cookie_browser):
         _cleanup_partial(dest_dir)
         try:
             return _download_once(
@@ -170,6 +215,13 @@ def ingest_url(url: str, dest_dir: Path, cookie_browser: str = "") -> Path:
                 f"Detalhe: {final_msg}. Tente abrir o vídeo no navegador selecionado, "
                 "recarregar a página e criar um novo projeto, ou envie o arquivo de vídeo diretamente."
             ) from cookie_exc
+
+    if cookie_browser:
+        raise RuntimeError(
+            f"A sessão do {cookie_browser.title()} não está neste computador de processamento. "
+            "A seleção de navegador só funciona quando o app e o navegador estão na mesma máquina. "
+            "No CPU Cloud, envie o arquivo de vídeo ou processe pelo aplicativo local."
+        )
 
     raise RuntimeError(
         "O YouTube bloqueou o download (HTTP 403). O app tentou o modo moderno com PO Token, "
