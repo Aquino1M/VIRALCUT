@@ -71,6 +71,23 @@ def test_analytics_page_exposes_local_viralytics(monkeypatch, tmp_path):
     assert 'ViralScore médio' in r.text
 
 
+def test_youtube_browser_choice_is_available_for_new_and_failed_projects(monkeypatch, tmp_path):
+    client, _ = setup_client(monkeypatch, tmp_path)
+    new_page = client.get('/projects/new')
+    assert new_page.status_code == 200
+    assert 'name="youtube_cookies"' in new_page.text
+    for browser in ('brave', 'chrome', 'edge', 'firefox'):
+        assert f'value="{browser}"' in new_page.text
+
+    db.execute("UPDATE projects SET status='error', message='HTTP 403' WHERE id='p1'")
+    project_page = client.get('/projects/p1')
+    assert project_page.status_code == 200
+    assert 'id="defaultYoutubeCookies"' in project_page.text
+    saved = client.post('/projects/p1/defaults', json={'youtube_cookies': 'brave'})
+    assert saved.status_code == 200
+    assert json.loads(db.fetchone("SELECT settings_json FROM projects WHERE id='p1'")['settings_json'])['youtube_cookies'] == 'brave'
+
+
 def test_sidebar_hides_technical_and_unused_workflow_links():
     html = Path('app/templates/base.html').read_text(encoding='utf-8')
     assert 'href="/publish"' not in html
