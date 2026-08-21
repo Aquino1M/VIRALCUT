@@ -141,8 +141,6 @@ def ensure_uploaded(path: str | Path, *, progress: Progress | None = None) -> di
 
 def submit_task(task_type: str, payload: dict[str, Any], *, media_path: str | Path | None = None, idempotency_key: str | None = None,
                 progress: Progress | None = None) -> str:
-    if LIGHTNING_FREE_CPU_ONLY and task_type == "render":
-        raise RuntimeError("Render remoto bloqueado: ViralClip V4.2 está em modo Lightning FREE CPU ONLY.")
     media = None
     if media_path:
         media = ensure_uploaded(media_path, progress=progress)

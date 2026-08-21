@@ -26,6 +26,69 @@ def _identity(path: Path, suffix: str) -> str:
     return hashlib.sha256(f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|{suffix}".encode()).hexdigest()
 
 
+def cloud_render_available(mode: str) -> bool:
+    """Cloud/Híbrido deliberately make Lightning the primary renderer."""
+    return str(mode or "auto").lower() in {"cloud", "hybrid"} and cloud_client.configured() and bool(cloud_client.health(timeout=2.5).get("ok"))
+
+
+def render_adaptive(
+    source: Path,
+    out_path: Path,
+    *,
+    render_kind: str,
+    payload: dict[str, Any],
+    profile: dict[str, Any],
+    mode: str = "auto",
+    project_id: str | None = None,
+    clip_id: str | None = None,
+    progress: Progress | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+    local_renderer=None,
+) -> tuple[dict, dict]:
+    """Render remotely for Cloud/Híbrido, keeping local encoding as the safe default."""
+    if local_renderer is None:
+        raise ValueError("local_renderer obrigatório")
+    source = Path(source)
+    units = max(0.1, float(payload.get("end") or 0) - float(payload.get("start") or 0))
+    task_id = compute.create_task(
+        project_id=project_id, clip_id=clip_id, task_type="render", units=units,
+        input_hash=_identity(source, f"render:{render_kind}:{json.dumps(payload, sort_keys=True, ensure_ascii=False)}"),
+    )
+    remote = cloud_render_available(mode)
+    selected = "cloud_cpu" if remote else "local_cpu"
+    decision = {
+        "task_type": "render", "selected": selected, "selected_id": "lightning_free_cpu" if remote else "local_cpu",
+        "mode": mode, "primary": "lightning" if remote else "local", "created_at": compute.now_iso(),
+    }
+    compute.log_decision(task_id, decision)
+    compute.update_task(task_id, state="running", node_kind=selected)
+    started = time.monotonic()
+    try:
+        if remote:
+            def cb(fraction: float, message: str) -> None:
+                compute.update_task(task_id, progress=fraction)
+                if progress: progress(fraction, f"Lightning CPU grátis · {message}")
+            job_id = cloud_client.submit_task(
+                "render", {**payload, "render_kind": render_kind}, media_path=source,
+                idempotency_key=_identity(source, f"render:{render_kind}:{json.dumps(payload, sort_keys=True, ensure_ascii=False)}"), progress=cb,
+            )
+            result = cloud_client.wait_job(job_id, progress=cb, cancel_check=cancel_check)
+            cloud_client.download_result_file(job_id, out_path)
+            result = dict(result or {})
+            result.setdefault("encoder", "lightning-cpu")
+        else:
+            result = dict(local_renderer() or {})
+        elapsed = max(.001, time.monotonic() - started)
+        compute.record_sample(node_kind=selected, task_type="render", units=units, seconds=elapsed, metadata={"project_id": project_id, "remote": remote})
+        compute.update_task(task_id, state="done", progress=1, result={"node": selected, "encoder": result.get("encoder")})
+        return result, {**decision, "task_id": task_id}
+    except Exception as exc:
+        compute.update_task(task_id, state="failed", error=str(exc))
+        if remote:
+            raise RuntimeError(f"Renderização na CPU Cloud falhou: {exc}") from exc
+        raise
+
+
 def transcribe_segments_adaptive(
     source: Path,
     language: str | None,

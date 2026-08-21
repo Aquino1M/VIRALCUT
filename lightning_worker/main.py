@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-API_VERSION = 3
+API_VERSION = 4
 ROOT = Path(os.getenv("VIRALCLIP_LIGHTNING_DATA", "data/lightning_worker")).resolve()
 UPLOADS = ROOT / "uploads"
 RESULTS = ROOT / "results"
@@ -175,7 +175,7 @@ def _machine_caps() -> dict[str, Any]:
         "gpu_name": gpu_name,
         "machine_type": "gpu-rejected" if gpu else ("free-cpu" if cpu_is_free_shape else "paid-cpu-rejected"),
         "heavy_slots": HEAVY_SLOTS,
-        "tasks": ["asr_segments", "asr_words", "highlights", "tracking", "embeddings", "editor_proxy"],
+        "tasks": ["asr_segments", "asr_words", "highlights", "tracking", "render", "embeddings", "editor_proxy"],
     }
 
 
@@ -275,13 +275,13 @@ def create_job(payload: dict[str, Any] = Body(...), authorization: str | None = 
     _auth(authorization); _assert_free_cpu()
     if not bool(payload.get('free_cpu_only',False)): raise HTTPException(400,'Cliente deve declarar free_cpu_only=true')
     task_type=str(payload.get('task_type') or '')
-    if task_type not in {'asr_segments','asr_words','highlights','tracking','embeddings','editor_proxy'}: raise HTTPException(400,'Tarefa não permitida no worker CPU grátis')
+    if task_type not in {'asr_segments','asr_words','highlights','tracking','render','embeddings','editor_proxy'}: raise HTTPException(400,'Tarefa não permitida no worker CPU grátis')
     idem=(idempotency_key or '').strip()
     if idem:
         old=_row("SELECT id FROM jobs WHERE idempotency_key=?",(idem,))
         if old: return {"job_id":old['id'],"deduplicated":True}
     upload_id=payload.get('upload_id')
-    if task_type in {'asr_segments','asr_words','tracking','editor_proxy'}:
+    if task_type in {'asr_segments','asr_words','tracking','render','editor_proxy'}:
         up=_row("SELECT * FROM uploads WHERE id=? AND state='complete'",(upload_id,))
         if not up: raise HTTPException(400,'Tarefa exige upload completo')
     job_id=uuid.uuid4().hex
@@ -414,6 +414,33 @@ def _process_job(job_id: str) -> None:
 
 
 def _run_task(job_id: str, task: str, payload: dict[str,Any], media: Path|None) -> dict:
+    if task == 'render':
+        if media is None: raise RuntimeError('Mídia ausente')
+        from app.services.render import render_clean_clip, render_edited_clip
+        from app.services.timeline_render import render_timeline_clip
+        kind = str(payload.get('render_kind') or '')
+        start = float(payload.get('start') or 0); end = max(start + .05, float(payload.get('end') or start + .05))
+        state = payload.get('edit_state') or {}
+        tracking = payload.get('tracking') or {}
+        target = RESULTS / f'{job_id}.{kind or "render"}.mp4'
+        def cb(frac: float, message: str):
+            if _cancelled(job_id): raise RuntimeError('cancelled')
+            _update_job(job_id, progress=max(.02, min(.98, float(frac))), message=f'{message} · CPU grátis')
+        _update_job(job_id, progress=.04, message='Renderizando na CPU Cloud')
+        if kind == 'clean':
+            result = render_clean_clip(media, target, start, end, state, tracking=tracking)
+        elif kind == 'edited':
+            result = render_edited_clip(media, target, start, end, state, transcript=payload.get('transcript'), tracking=tracking, progress_callback=cb)
+        elif kind == 'timeline':
+            result = render_timeline_clip(
+                media, target, start, end, state, payload.get('timeline') or {},
+                caption_cues=payload.get('caption_cues') or None, transcript=payload.get('transcript'), tracking=tracking,
+                preview=bool(payload.get('preview')), preview_offset=float(payload.get('preview_offset') or 0),
+                preview_duration=float(payload.get('preview_duration') or 8), progress_callback=cb,
+            )
+        else:
+            raise RuntimeError('Tipo de render inválido')
+        return {**(result or {}), 'file_path': str(target.resolve()), 'content_type': 'video/mp4'}
     if task=='editor_proxy':
         if media is None: raise RuntimeError('Mídia ausente')
         from app.services.proxy_media import ensure_editor_proxy

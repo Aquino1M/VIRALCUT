@@ -23,6 +23,12 @@ def estimate_temp_bytes(source_size: int) -> int:
     return max(128 * MIB, int(size * 1.75))
 
 
+def estimate_cloud_assisted_temp_bytes(source_size: int) -> int:
+    """Working set left on Railway when final video encoding runs on Lightning."""
+    size = max(0, int(source_size or 0))
+    return max(64 * MIB, int(size * 0.25))
+
+
 def evaluate_space(*, source_size: int, free_bytes: int, reserve_bytes: int = DEFAULT_RESERVE_BYTES) -> dict[str, Any]:
     temp_bytes = estimate_temp_bytes(source_size)
     required = temp_bytes + max(0, int(reserve_bytes))
@@ -56,6 +62,34 @@ def ensure_job_space(source: Path, *, temp_root: Path | None = None, reserve_byt
         raise InsufficientDiskSpace(
             f"Espaço em disco insuficiente para este job: ~{need_gb:.1f} GB necessários e {free_gb:.1f} GB livres. "
             "Libere espaço ou altere a pasta de dados antes de tentar novamente."
+        )
+    return result
+
+
+def ensure_cloud_assisted_job_space(source: Path, *, temp_root: Path | None = None,
+                                    reserve_bytes: int = DEFAULT_RESERVE_BYTES) -> dict[str, Any]:
+    """Validate only Railway's remaining analysis work; Lightning owns renders."""
+    source = Path(source)
+    root = Path(temp_root or TEMP_DIR)
+    root.mkdir(parents=True, exist_ok=True)
+    source_size = source.stat().st_size if source.exists() else 0
+    snap = storage_snapshot(root)
+    temp_bytes = estimate_cloud_assisted_temp_bytes(source_size)
+    required = temp_bytes + max(0, int(reserve_bytes))
+    result = {
+        **snap,
+        "ok": snap["free_bytes"] >= required,
+        "required_bytes": required,
+        "estimated_temp_bytes": temp_bytes,
+        "reserve_bytes": max(0, int(reserve_bytes)),
+        "render_location": "lightning_cloud",
+    }
+    if not result["ok"]:
+        need_gb = required / GIB
+        free_gb = snap["free_bytes"] / GIB
+        raise InsufficientDiskSpace(
+            f"Espaço em disco insuficiente para a análise local: ~{need_gb:.1f} GB necessários e {free_gb:.1f} GB livres. "
+            "A renderização será feita na CPU Cloud, mas ainda é necessário espaço para a fonte e a análise."
         )
     return result
 

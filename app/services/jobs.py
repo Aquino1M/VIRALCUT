@@ -371,9 +371,14 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
 
         control.checkpoint()
         job_store.start_stage(job_id, "storage", total=1.0, message="Verificando espaço em disco")
-        storage = disk_manager.ensure_job_space(source, temp_root=work_dir)
+        cloud_render = compute_fabric.cloud_render_available(compute_mode)
+        storage = (
+            disk_manager.ensure_cloud_assisted_job_space(source, temp_root=work_dir)
+            if cloud_render else disk_manager.ensure_job_space(source, temp_root=work_dir)
+        )
         free_gb = float(storage.get("free_bytes") or 0) / (1024 ** 3)
-        job_store.update_stage(job_id, current=1.0, total=1.0, message=f"Espaço em disco OK · {free_gb:.1f} GB livres")
+        storage_message = "Renderização na CPU Cloud" if cloud_render else "Renderização local"
+        job_store.update_stage(job_id, current=1.0, total=1.0, message=f"Espaço em disco OK · {free_gb:.1f} GB livres · {storage_message}")
         job_store.finish_stage(job_id)
 
         media = probe_video(source)
@@ -584,14 +589,25 @@ def process_project(project_id: str, job_id: str | None = None) -> None:
             clip_id = uuid.uuid4().hex
             clip_tracking = face_tracking.slice_tracks(window_data, float(candidate["start"]), float(candidate["end"]))
             clip_state = _state_for_candidate(default_state, candidate)
-            render_clean_clip(
-                source=source, out_path=clean_out, start=float(candidate["start"]), end=float(candidate["end"]),
-                edit_state=clip_state, tracking=clip_tracking,
+            _, clean_route = compute_fabric.render_adaptive(
+                source, clean_out, render_kind="clean",
+                payload={"start": float(candidate["start"]), "end": float(candidate["end"]), "edit_state": clip_state, "tracking": clip_tracking},
+                profile=profile, mode=compute_mode, project_id=project_id,
+                local_renderer=lambda: render_clean_clip(
+                    source=source, out_path=clean_out, start=float(candidate["start"]), end=float(candidate["end"]),
+                    edit_state=clip_state, tracking=clip_tracking,
+                ),
             )
-            result = render_edited_clip(
-                source=source, out_path=video_out, start=float(candidate["start"]), end=float(candidate["end"]),
-                edit_state=clip_state, transcript=transcript, tracking=clip_tracking,
+            result, render_route = compute_fabric.render_adaptive(
+                source, video_out, render_kind="edited",
+                payload={"start": float(candidate["start"]), "end": float(candidate["end"]), "edit_state": clip_state, "transcript": transcript, "tracking": clip_tracking},
+                profile=profile, mode=compute_mode, project_id=project_id,
+                local_renderer=lambda: render_edited_clip(
+                    source=source, out_path=video_out, start=float(candidate["start"]), end=float(candidate["end"]),
+                    edit_state=clip_state, transcript=transcript, tracking=clip_tracking,
+                ),
             )
+            compute_summary.extend((clean_route, render_route))
             thumb = THUMB_DIR / f"{clip_id}.jpg"
             try:
                 generate_thumbnail(video_out, thumb, candidate.get("title", "")); thumb_path = str(thumb)

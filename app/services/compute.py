@@ -24,7 +24,7 @@ TASK_TYPES = {
 }
 
 HEAVY_TASKS = {"asr_segments", "asr_words", "tracking", "render", "embeddings"}
-CLOUD_ALLOWED_TASKS = {"asr_segments", "asr_words", "highlights", "tracking", "embeddings"}
+CLOUD_ALLOWED_TASKS = {"asr_segments", "asr_words", "highlights", "tracking", "render", "embeddings"}
 
 # Conservative multipliers. They are continuously corrected by real samples.
 DEFAULT_SPEED = {
@@ -40,6 +40,7 @@ DEFAULT_SPEED = {
     ("cloud_cpu", "asr_segments"): 1.30,
     ("cloud_cpu", "asr_words"): 1.05,
     ("cloud_cpu", "tracking"): 0.95,
+    ("cloud_cpu", "render"): 0.85,
     ("cloud_cpu", "highlights"): 35.0,
     ("cloud_cpu", "embeddings"): 1.0,
 }

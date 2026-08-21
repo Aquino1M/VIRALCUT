@@ -12,6 +12,8 @@ from app.db import execute, fetchall, fetchone, now_iso
 from . import editor as editor_service
 from . import preview as preview_service
 from . import face_tracking
+from . import compute_fabric
+from . import hardware
 from .render import generate_thumbnail, render_edited_clip
 from . import timeline as timeline_service
 from .timeline_render import render_timeline_clip
@@ -158,20 +160,28 @@ def _render_worker(render_id: str, preview_offset: float) -> None:
     started = time.perf_counter()
     update_render_record(render_id, status="rendering", progress=12)
     try:
-        result = render_timeline_clip(
-            Path(clip["source_path"]),
-            out_path,
-            float(clip["start_time"]),
-            float(clip["end_time"]),
-            state,
-            timeline_data,
-            caption_cues=cues or None,
-            transcript=transcript,
-            tracking=clip_tracking,
-            preview=is_preview,
-            preview_offset=0.0 if is_project_preview else preview_offset,
-            preview_duration=max(0.1, float(clip["end_time"]) - float(clip["start_time"])) if is_project_preview else 8.0,
-            progress_callback=lambda pct, _msg: update_render_record(render_id, status="rendering", progress=min(99, max(1, int(pct)))),
+        mode_row = fetchone(
+            "SELECT u.compute_mode FROM projects p JOIN users u ON u.id=p.user_id WHERE p.id=?",
+            (clip["project_id"],),
+        )
+        compute_mode = str((mode_row["compute_mode"] if mode_row else None) or "auto")
+        render_payload = {
+            "start": float(clip["start_time"]), "end": float(clip["end_time"]), "edit_state": state,
+            "timeline": timeline_data, "caption_cues": cues or None, "transcript": transcript, "tracking": clip_tracking,
+            "preview": is_preview, "preview_offset": 0.0 if is_project_preview else preview_offset,
+            "preview_duration": max(0.1, float(clip["end_time"]) - float(clip["start_time"])) if is_project_preview else 8.0,
+        }
+        result, _route = compute_fabric.render_adaptive(
+            Path(clip["source_path"]), out_path, render_kind="timeline", payload=render_payload,
+            profile=hardware.load_or_build_profile(), mode=compute_mode, project_id=clip["project_id"], clip_id=clip["id"],
+            progress=lambda pct, _msg: update_render_record(render_id, status="rendering", progress=min(99, max(1, int(pct * 100)))),
+            local_renderer=lambda: render_timeline_clip(
+                Path(clip["source_path"]), out_path, float(clip["start_time"]), float(clip["end_time"]), state, timeline_data,
+                caption_cues=cues or None, transcript=transcript, tracking=clip_tracking, preview=is_preview,
+                preview_offset=0.0 if is_project_preview else preview_offset,
+                preview_duration=max(0.1, float(clip["end_time"]) - float(clip["start_time"])) if is_project_preview else 8.0,
+                progress_callback=lambda pct, _msg: update_render_record(render_id, status="rendering", progress=min(99, max(1, int(pct)))),
+            ),
         )
         elapsed = time.perf_counter() - started
         size = out_path.stat().st_size if out_path.exists() else 0
