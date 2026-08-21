@@ -20,6 +20,8 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
         'id="assetSearch"',
         'id="assetImportForm"',
         'id="multiTrackTimeline"',
+        'safe-center-v',
+        'safe-center-h',
     ]:
         assert token in html
 
@@ -39,6 +41,7 @@ def test_editor_exposes_cta_asset_library_and_multitrack_timeline():
     assert '.v3-track' in css
     assert '.save-editor-btn' in css
     assert ':not(.save-editor-btn)' in css
+    assert '.safe-center-v,.safe-center-h' in css
 
 
 def test_editor_library_can_insert_assets_at_playhead():
